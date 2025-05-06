@@ -7,6 +7,19 @@ from datetime import datetime, timedelta
 import os
 import json
 import base64
+import sys
+import logging
+
+# Suprimir mensagens de aviso do Streamlit
+logging.getLogger("streamlit").setLevel(logging.ERROR)
+st.set_option('deprecation.showfileUploaderEncoding', False)
+
+# Redirecionar stderr para suprimir mensagens de aviso
+class NullWriter:
+    def write(self, s):
+        pass
+    def flush(self):
+        pass
 
 # Configuração da página
 st.set_page_config(
@@ -16,20 +29,13 @@ st.set_page_config(
 )
 
 # Função para exibir uma imagem como logomarca
-def add_logo(logo_path=None, logo_url=None):
-    if logo_path:
-        with open(logo_path, "rb") as f:
-            data = f.read()
-        encoded = base64.b64encode(data).decode()
-    elif logo_url:
-        encoded = logo_url
-    else:
-        # Logo padrão (substitua pela URL da sua logo)
-        encoded = "https://asset.cloudinary.com/duaceyavi/67a8a71d8e11593f391d1e3fcb9016a7"
+def add_logo():
+    # URL direta da imagem do Imgur
+    logo_url = "https://i.imgur.com/1WrPrsH.png"  # Link direto para a imagem do usuário
 
     logo_html = f'''
         <div style="display: flex; justify-content: center; margin-bottom: 20px;">
-            <img src="{encoded}" alt="logo" style="max-width: 300px; max-height: 150px;">
+            <img src="{logo_url}" alt="logo" style="max-width: 300px; max-height: 150px;">
         </div>
     '''
     st.markdown(logo_html, unsafe_allow_html=True)
@@ -66,22 +72,31 @@ def init_supabase():
     try:
         from supabase import create_client
 
-        # Tentar obter credenciais de st.secrets primeiro (para Streamlit Cloud)
+        # Redirecionar stderr para suprimir mensagens de aviso
+        old_stderr = sys.stderr
+        sys.stderr = NullWriter()
+
         try:
-            url = st.secrets["SUPABASE_URL"]
-            key = st.secrets["SUPABASE_KEY"]
-        except:
-            # Caso contrário, usar variáveis de ambiente (para Render)
+            # Tentar obter credenciais de variáveis de ambiente (para Render)
             url = os.environ.get("SUPABASE_URL")
             key = os.environ.get("SUPABASE_KEY")
 
-        if not url or not key:
-            st.error("Credenciais do Supabase não encontradas.")
-            return None
+            if not url or not key:
+                # Restaurar stderr
+                sys.stderr = old_stderr
+                return None
 
-        return create_client(url, key)
+            client = create_client(url, key)
+
+            # Restaurar stderr
+            sys.stderr = old_stderr
+
+            return client
+        except Exception as e:
+            # Restaurar stderr
+            sys.stderr = old_stderr
+            return None
     except Exception as e:
-        st.error(f"Erro ao conectar com Supabase: {e}")
         return None
 
 def create_user(username, password, email, is_admin=False):
@@ -110,7 +125,6 @@ def create_user(username, password, email, is_admin=False):
         response = supabase.table('users').insert(user_data).execute()
         return True, response.data[0]['id']
     except Exception as e:
-        st.error(f"Erro ao criar usuário: {e}")
         return False, str(e)
 
 def authenticate_user(username, password):
@@ -125,7 +139,6 @@ def authenticate_user(username, password):
             return True, response.data[0]
         return False, None
     except Exception as e:
-        st.error(f"Erro ao autenticar: {e}")
         return False, None
 
 def save_assessment(user_id, score, adjustment_percentage, responses):
@@ -151,7 +164,6 @@ def save_assessment(user_id, score, adjustment_percentage, responses):
         response = supabase.table('assessments').insert(assessment_data).execute()
         return response.data[0]['id']
     except Exception as e:
-        st.error(f"Erro ao salvar avaliação: {e}")
         return None
 
 def get_user_assessments(user_id, days=30):
@@ -167,7 +179,6 @@ def get_user_assessments(user_id, days=30):
 
         return response.data
     except Exception as e:
-        st.error(f"Erro ao buscar avaliações: {e}")
         return []
 
 def get_all_users():
@@ -179,7 +190,6 @@ def get_all_users():
         response = supabase.table('users').select('*').execute()
         return response.data
     except Exception as e:
-        st.error(f"Erro ao buscar usuários: {e}")
         return []
 
 def get_all_assessments(days=30):
@@ -195,7 +205,6 @@ def get_all_assessments(days=30):
 
         return response.data
     except Exception as e:
-        st.error(f"Erro ao buscar todas as avaliações: {e}")
         return []
 
 def get_recent_registrations(days=7):
@@ -211,7 +220,6 @@ def get_recent_registrations(days=7):
 
         return response.data
     except Exception as e:
-        st.error(f"Erro ao buscar registros recentes: {e}")
         return []
 
 # Função para fazer logout
@@ -226,7 +234,7 @@ def logout():
 # Função para exibir o formulário de login
 def login_form():
     # Adicionar logo no topo
-    add_logo(logo_url="https://asset.cloudinary.com/duaceyavi/67a8a71d8e11593f391d1e3fcb9016a7")
+    add_logo()
 
     st.title("Questionário de Prontidão para Treinamento")
 
@@ -276,7 +284,7 @@ def login_form():
 # Função para exibir o questionário
 def show_questionnaire():
     # Adicionar logo no topo
-    add_logo(logo_url="https://asset.cloudinary.com/duaceyavi/67a8a71d8e11593f391d1e3fcb9016a7")
+    add_logo()
 
     st.title(f"Olá, {st.session_state.username}! 👋")
 
@@ -390,7 +398,7 @@ def show_questionnaire():
 # Função para exibir o painel de administração
 def admin_dashboard():
     # Adicionar logo no topo
-    add_logo(logo_url="https://asset.cloudinary.com/duaceyavi/67a8a71d8e11593f391d1e3fcb9016a7")
+    add_logo()
 
     st.title("Painel de Administração")
 
@@ -521,6 +529,10 @@ def admin_dashboard():
 
 # Função principal
 def main():
+    # Redirecionar stderr para suprimir mensagens de aviso
+    old_stderr = sys.stderr
+    sys.stderr = NullWriter()
+
     try:
         # Verificar conexão com Supabase
         supabase = init_supabase()
@@ -534,6 +546,9 @@ def main():
     except Exception as e:
         st.error(f"Erro na aplicação: {e}")
         st.info("Tente recarregar a página ou entre em contato com o administrador.")
+    finally:
+        # Restaurar stderr
+        sys.stderr = old_stderr
 
 if __name__ == "__main__":
     main()
