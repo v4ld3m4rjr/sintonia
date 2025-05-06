@@ -6,11 +6,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import os
 import json
-import sys
-import logging
-
-# Suprimir mensagens de aviso do Streamlit
-logging.getLogger("streamlit").setLevel(logging.ERROR)
+import base64
 
 # Configuração da página
 st.set_page_config(
@@ -18,6 +14,25 @@ st.set_page_config(
     page_icon="🏋️",
     layout="wide"
 )
+
+# Função para exibir uma imagem como logomarca
+def add_logo(logo_path=None, logo_url=None):
+    if logo_path:
+        with open(logo_path, "rb") as f:
+            data = f.read()
+        encoded = base64.b64encode(data).decode()
+    elif logo_url:
+        encoded = logo_url
+    else:
+        # Logo padrão (substitua pela URL da sua logo)
+        encoded = "https://asset.cloudinary.com/duaceyavi/67a8a71d8e11593f391d1e3fcb9016a7"
+
+    logo_html = f'''
+        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+            <img src="{encoded}" alt="logo" style="max-width: 300px; max-height: 150px;">
+        </div>
+    '''
+    st.markdown(logo_html, unsafe_allow_html=True)
 
 # Inicialização de variáveis de sessão
 if 'logged_in' not in st.session_state:
@@ -210,6 +225,9 @@ def logout():
 
 # Função para exibir o formulário de login
 def login_form():
+    # Adicionar logo no topo
+    add_logo(logo_url="https://asset.cloudinary.com/duaceyavi/67a8a71d8e11593f391d1e3fcb9016a7")
+
     st.title("Questionário de Prontidão para Treinamento")
 
     tab1, tab2 = st.tabs(["Login", "Cadastro"])
@@ -257,6 +275,9 @@ def login_form():
 
 # Função para exibir o questionário
 def show_questionnaire():
+    # Adicionar logo no topo
+    add_logo(logo_url="https://asset.cloudinary.com/duaceyavi/67a8a71d8e11593f391d1e3fcb9016a7")
+
     st.title(f"Olá, {st.session_state.username}! 👋")
 
     if st.session_state.is_admin:
@@ -368,6 +389,9 @@ def show_questionnaire():
 
 # Função para exibir o painel de administração
 def admin_dashboard():
+    # Adicionar logo no topo
+    add_logo(logo_url="https://asset.cloudinary.com/duaceyavi/67a8a71d8e11593f391d1e3fcb9016a7")
+
     st.title("Painel de Administração")
 
     # Botão para voltar ao questionário
@@ -498,19 +522,8 @@ def admin_dashboard():
 # Função principal
 def main():
     try:
-        # Redirecionar stderr para suprimir mensagens de aviso do Streamlit
-        old_stderr = sys.stderr
-        sys.stderr = open(os.devnull, 'w')
-
         # Verificar conexão com Supabase
         supabase = init_supabase()
-
-        # Restaurar stderr
-        sys.stderr.close()
-        sys.stderr = old_stderr
-
-        if not supabase:
-            st.warning("Não foi possível conectar ao banco de dados. Algumas funcionalidades podem não estar disponíveis.")
 
         if not st.session_state.logged_in:
             login_form()
