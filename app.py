@@ -6,11 +6,29 @@ import numpy as np
 from datetime import datetime, timedelta
 import os
 import json
+import base64
 import sys
 import logging
+import warnings
 
-# Suprimir mensagens de aviso do Streamlit
+# Suprimir todos os avisos
+warnings.filterwarnings('ignore')
+
+# Configurar logging para suprimir mensagens de aviso do Streamlit
 logging.getLogger("streamlit").setLevel(logging.ERROR)
+st.set_option('deprecation.showfileUploaderEncoding', False)
+st.set_option('deprecation.showPyplotGlobalUse', False)
+
+# Redirecionar stderr para suprimir mensagens de aviso
+class NullWriter:
+    def write(self, s):
+        pass
+    def flush(self):
+        pass
+
+# Redirecionar stderr para suprimir mensagens
+old_stderr = sys.stderr
+sys.stderr = NullWriter()
 
 # Configuração da página
 st.set_page_config(
@@ -18,6 +36,21 @@ st.set_page_config(
     page_icon="🏋️",
     layout="wide"
 )
+
+# Restaurar stderr
+sys.stderr = old_stderr
+
+# Função para exibir uma imagem como logomarca
+def add_logo():
+    # URL direta da imagem do Imgur
+    logo_url = "https://i.imgur.com/1WrPrsH.png"  # Link direto para a imagem do usuário
+
+    logo_html = f'''
+        <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+            <img src="{logo_url}" alt="logo" style="max-width: 300px; max-height: 150px;">
+        </div>
+    '''
+    st.markdown(logo_html, unsafe_allow_html=True)
 
 # Inicialização de variáveis de sessão
 if 'logged_in' not in st.session_state:
@@ -51,22 +84,35 @@ def init_supabase():
     try:
         from supabase import create_client
 
-        # Tentar obter credenciais de st.secrets primeiro (para Streamlit Cloud)
+        # Redirecionar stderr para suprimir mensagens de aviso
+        old_stderr = sys.stderr
+        sys.stderr = NullWriter()
+
         try:
-            url = st.secrets["SUPABASE_URL"]
-            key = st.secrets["SUPABASE_KEY"]
-        except:
-            # Caso contrário, usar variáveis de ambiente (para Render)
+            # Tentar obter credenciais de variáveis de ambiente (para Render)
             url = os.environ.get("SUPABASE_URL")
             key = os.environ.get("SUPABASE_KEY")
 
-        if not url or not key:
-            st.error("Credenciais do Supabase não encontradas.")
-            return None
+            if not url or not key:
+                # Criar um cliente dummy para evitar erros
+                # Restaurar stderr
+                sys.stderr = old_stderr
+                st.warning("Credenciais do Supabase não encontradas. Algumas funcionalidades podem não estar disponíveis.", icon="⚠️")
+                return None
 
-        return create_client(url, key)
+            client = create_client(url, key)
+
+            # Restaurar stderr
+            sys.stderr = old_stderr
+
+            return client
+        except Exception as e:
+            # Restaurar stderr
+            sys.stderr = old_stderr
+            st.warning(f"Erro ao conectar com Supabase: {str(e)[:100]}...", icon="⚠️")
+            return None
     except Exception as e:
-        st.error(f"Erro ao conectar com Supabase: {e}")
+        st.warning(f"Erro ao importar biblioteca Supabase: {str(e)[:100]}...", icon="⚠️")
         return None
 
 def create_user(username, password, email, is_admin=False):
@@ -95,7 +141,6 @@ def create_user(username, password, email, is_admin=False):
         response = supabase.table('users').insert(user_data).execute()
         return True, response.data[0]['id']
     except Exception as e:
-        st.error(f"Erro ao criar usuário: {e}")
         return False, str(e)
 
 def authenticate_user(username, password):
@@ -110,7 +155,6 @@ def authenticate_user(username, password):
             return True, response.data[0]
         return False, None
     except Exception as e:
-        st.error(f"Erro ao autenticar: {e}")
         return False, None
 
 def save_assessment(user_id, score, adjustment_percentage, responses):
@@ -136,7 +180,6 @@ def save_assessment(user_id, score, adjustment_percentage, responses):
         response = supabase.table('assessments').insert(assessment_data).execute()
         return response.data[0]['id']
     except Exception as e:
-        st.error(f"Erro ao salvar avaliação: {e}")
         return None
 
 def get_user_assessments(user_id, days=30):
@@ -152,7 +195,6 @@ def get_user_assessments(user_id, days=30):
 
         return response.data
     except Exception as e:
-        st.error(f"Erro ao buscar avaliações: {e}")
         return []
 
 def get_all_users():
@@ -164,7 +206,6 @@ def get_all_users():
         response = supabase.table('users').select('*').execute()
         return response.data
     except Exception as e:
-        st.error(f"Erro ao buscar usuários: {e}")
         return []
 
 def get_all_assessments(days=30):
@@ -180,7 +221,6 @@ def get_all_assessments(days=30):
 
         return response.data
     except Exception as e:
-        st.error(f"Erro ao buscar todas as avaliações: {e}")
         return []
 
 def get_recent_registrations(days=7):
@@ -196,7 +236,6 @@ def get_recent_registrations(days=7):
 
         return response.data
     except Exception as e:
-        st.error(f"Erro ao buscar registros recentes: {e}")
         return []
 
 # Função para fazer logout
@@ -210,6 +249,9 @@ def logout():
 
 # Função para exibir o formulário de login
 def login_form():
+    # Adicionar logo no topo
+    add_logo()
+
     st.title("Questionário de Prontidão para Treinamento")
 
     tab1, tab2 = st.tabs(["Login", "Cadastro"])
@@ -257,6 +299,9 @@ def login_form():
 
 # Função para exibir o questionário
 def show_questionnaire():
+    # Adicionar logo no topo
+    add_logo()
+
     st.title(f"Olá, {st.session_state.username}! 👋")
 
     if st.session_state.is_admin:
@@ -368,6 +413,9 @@ def show_questionnaire():
 
 # Função para exibir o painel de administração
 def admin_dashboard():
+    # Adicionar logo no topo
+    add_logo()
+
     st.title("Painel de Administração")
 
     # Botão para voltar ao questionário
@@ -497,20 +545,13 @@ def admin_dashboard():
 
 # Função principal
 def main():
-    try:
-        # Redirecionar stderr para suprimir mensagens de aviso do Streamlit
-        old_stderr = sys.stderr
-        sys.stderr = open(os.devnull, 'w')
+    # Redirecionar stderr para suprimir mensagens de aviso
+    old_stderr = sys.stderr
+    sys.stderr = NullWriter()
 
+    try:
         # Verificar conexão com Supabase
         supabase = init_supabase()
-
-        # Restaurar stderr
-        sys.stderr.close()
-        sys.stderr = old_stderr
-
-        if not supabase:
-            st.warning("Não foi possível conectar ao banco de dados. Algumas funcionalidades podem não estar disponíveis.")
 
         if not st.session_state.logged_in:
             login_form()
@@ -521,6 +562,9 @@ def main():
     except Exception as e:
         st.error(f"Erro na aplicação: {e}")
         st.info("Tente recarregar a página ou entre em contato com o administrador.")
+    finally:
+        # Restaurar stderr
+        sys.stderr = old_stderr
 
 if __name__ == "__main__":
     main()
