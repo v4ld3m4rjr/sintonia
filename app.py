@@ -42,8 +42,8 @@ sys.stderr = old_stderr
 
 # Função para exibir uma imagem como logomarca
 def add_logo():
-    # URL da nova imagem
-    logo_url = "https://collection.cloudinary.com/duaceyavi/ff18d70797adcc89687cd1c288c73b26"
+    # URL direta da imagem do Imgur (formato correto)
+    logo_url = "https://i.imgur.com/2wnT7zT.png"
 
     logo_html = f'''
         <div style="display: flex; justify-content: center; margin-bottom: 20px;">
