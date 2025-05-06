@@ -6,6 +6,11 @@ import numpy as np
 from datetime import datetime, timedelta
 import os
 import json
+import sys
+import logging
+
+# Suprimir mensagens de aviso do Streamlit
+logging.getLogger("streamlit").setLevel(logging.ERROR)
 
 # Configuração da página
 st.set_page_config(
@@ -493,19 +498,19 @@ def admin_dashboard():
 # Função principal
 def main():
     try:
+        # Redirecionar stderr para suprimir mensagens de aviso do Streamlit
+        old_stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+
         # Verificar conexão com Supabase
         supabase = init_supabase()
+
+        # Restaurar stderr
+        sys.stderr.close()
+        sys.stderr = old_stderr
+
         if not supabase:
             st.warning("Não foi possível conectar ao banco de dados. Algumas funcionalidades podem não estar disponíveis.")
-            st.info("Verifique se as variáveis de ambiente SUPABASE_URL e SUPABASE_KEY estão configuradas corretamente.")
-
-            # Exibir informações de depuração
-            st.write("Informações de depuração:")
-            try:
-                st.write(f"SUPABASE_URL em variáveis de ambiente: {'Sim' if os.environ.get('SUPABASE_URL') else 'Não'}")
-                st.write(f"SUPABASE_KEY em variáveis de ambiente: {'Sim' if os.environ.get('SUPABASE_KEY') else 'Não'}")
-            except:
-                st.write("Não foi possível verificar variáveis de ambiente")
 
         if not st.session_state.logged_in:
             login_form()
