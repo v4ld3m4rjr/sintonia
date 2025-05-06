@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime, timedelta
+import os
 import json
 
 # Configuração da página
@@ -44,8 +45,20 @@ def calculate_adjustment(score):
 def init_supabase():
     try:
         from supabase import create_client
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_KEY"]
+
+        # Tentar obter credenciais de st.secrets primeiro (para Streamlit Cloud)
+        try:
+            url = st.secrets["SUPABASE_URL"]
+            key = st.secrets["SUPABASE_KEY"]
+        except:
+            # Caso contrário, usar variáveis de ambiente (para Render)
+            url = os.environ.get("SUPABASE_URL")
+            key = os.environ.get("SUPABASE_KEY")
+
+        if not url or not key:
+            st.error("Credenciais do Supabase não encontradas.")
+            return None
+
         return create_client(url, key)
     except Exception as e:
         st.error(f"Erro ao conectar com Supabase: {e}")
@@ -484,6 +497,15 @@ def main():
         supabase = init_supabase()
         if not supabase:
             st.warning("Não foi possível conectar ao banco de dados. Algumas funcionalidades podem não estar disponíveis.")
+            st.info("Verifique se as variáveis de ambiente SUPABASE_URL e SUPABASE_KEY estão configuradas corretamente.")
+
+            # Exibir informações de depuração
+            st.write("Informações de depuração:")
+            try:
+                st.write(f"SUPABASE_URL em variáveis de ambiente: {'Sim' if os.environ.get('SUPABASE_URL') else 'Não'}")
+                st.write(f"SUPABASE_KEY em variáveis de ambiente: {'Sim' if os.environ.get('SUPABASE_KEY') else 'Não'}")
+            except:
+                st.write("Não foi possível verificar variáveis de ambiente")
 
         if not st.session_state.logged_in:
             login_form()
