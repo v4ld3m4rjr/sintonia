@@ -9,10 +9,15 @@ import json
 import base64
 import sys
 import logging
+import warnings
 
-# Suprimir mensagens de aviso do Streamlit
+# Suprimir todos os avisos
+warnings.filterwarnings('ignore')
+
+# Configurar logging para suprimir mensagens de aviso do Streamlit
 logging.getLogger("streamlit").setLevel(logging.ERROR)
 st.set_option('deprecation.showfileUploaderEncoding', False)
+st.set_option('deprecation.showPyplotGlobalUse', False)
 
 # Redirecionar stderr para suprimir mensagens de aviso
 class NullWriter:
@@ -21,12 +26,19 @@ class NullWriter:
     def flush(self):
         pass
 
+# Redirecionar stderr para suprimir mensagens
+old_stderr = sys.stderr
+sys.stderr = NullWriter()
+
 # Configuração da página
 st.set_page_config(
     page_title="Questionário de Prontidão para Treinamento",
     page_icon="🏋️",
     layout="wide"
 )
+
+# Restaurar stderr
+sys.stderr = old_stderr
 
 # Função para exibir uma imagem como logomarca
 def add_logo():
@@ -82,8 +94,10 @@ def init_supabase():
             key = os.environ.get("SUPABASE_KEY")
 
             if not url or not key:
+                # Criar um cliente dummy para evitar erros
                 # Restaurar stderr
                 sys.stderr = old_stderr
+                st.warning("Credenciais do Supabase não encontradas. Algumas funcionalidades podem não estar disponíveis.", icon="⚠️")
                 return None
 
             client = create_client(url, key)
@@ -95,8 +109,10 @@ def init_supabase():
         except Exception as e:
             # Restaurar stderr
             sys.stderr = old_stderr
+            st.warning(f"Erro ao conectar com Supabase: {str(e)[:100]}...", icon="⚠️")
             return None
     except Exception as e:
+        st.warning(f"Erro ao importar biblioteca Supabase: {str(e)[:100]}...", icon="⚠️")
         return None
 
 def create_user(username, password, email, is_admin=False):
