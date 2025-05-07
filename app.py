@@ -32,7 +32,7 @@ sys.stderr = NullWriter()
 
 # Configuração da página
 st.set_page_config(
-    page_title="Questionário de Prontidão para Treinamento",
+    page_title="Sintonia - Análise de Treino",
     page_icon="🏋️",
     layout="wide"
 )
@@ -67,6 +67,8 @@ if 'users' not in st.session_state:
     st.session_state.users = []
 if 'assessments' not in st.session_state:
     st.session_state.assessments = []
+if 'app_mode' not in st.session_state:
+    st.session_state.app_mode = "Avaliação de Prontidão"
 
 # Funções de utilidade
 def calculate_score(responses):
@@ -238,6 +240,141 @@ def get_recent_registrations(days=7):
     except Exception as e:
         return []
 
+# Novas funções para a análise pós-treino
+def save_recovery_data(psr, sleep_hours, sleep_quality, waking_feeling, readiness_index):
+    try:
+        supabase = init_supabase()
+        if not supabase:
+            return None
+
+        recovery_data = {
+            'user_id': st.session_state.user_id,
+            'psr': psr,
+            'sleep_hours': sleep_hours,
+            'sleep_quality': sleep_quality,
+            'waking_feeling': waking_feeling,
+            'readiness_index': readiness_index
+        }
+
+        response = supabase.table('recovery_data').insert(recovery_data).execute()
+        return response.data[0]['id']
+    except Exception as e:
+        st.error(f"Erro ao salvar dados de recuperação: {e}")
+        return None
+
+def save_training_data(rpe, duration, training_type, trimp, training_date):
+    try:
+        supabase = init_supabase()
+        if not supabase:
+            return None
+
+        training_data = {
+            'user_id': st.session_state.user_id,
+            'rpe': rpe,
+            'duration': duration,
+            'training_type': training_type,
+            'trimp': trimp,
+            'training_date': training_date.isoformat()
+        }
+
+        response = supabase.table('training_data').insert(training_data).execute()
+        return response.data[0]['id']
+    except Exception as e:
+        st.error(f"Erro ao salvar dados de treino: {e}")
+        return None
+
+def get_latest_recovery_data():
+    try:
+        supabase = init_supabase()
+        if not supabase:
+            return None
+
+        response = supabase.table('recovery_data')             .select('*')             .eq('user_id', st.session_state.user_id)             .order('created_at', desc=True)             .limit(1)             .execute()
+
+        if response.data:
+            return response.data[0]
+        return None
+    except Exception as e:
+        st.error(f"Erro ao buscar dados de recuperação: {e}")
+        return None
+
+def get_latest_training_data():
+    try:
+        supabase = init_supabase()
+        if not supabase:
+            return None
+
+        response = supabase.table('training_data')             .select('*')             .eq('user_id', st.session_state.user_id)             .order('created_at', desc=True)             .limit(1)             .execute()
+
+        if response.data:
+            return response.data[0]
+        return None
+    except Exception as e:
+        st.error(f"Erro ao buscar dados de treino: {e}")
+        return None
+
+def get_training_recovery_history(days=30):
+    try:
+        supabase = init_supabase()
+        if not supabase:
+            return []
+
+        # Calcular a data de início com base nos dias
+        start_date = (datetime.now() - timedelta(days=days)).isoformat()
+
+        # Buscar dados de recuperação
+        recovery_response = supabase.table('recovery_data')             .select('*')             .eq('user_id', st.session_state.user_id)             .gte('created_at', start_date)             .order('created_at', desc=False)             .execute()
+
+        # Buscar dados de treino
+        training_response = supabase.table('training_data')             .select('*')             .eq('user_id', st.session_state.user_id)             .gte('created_at', start_date)             .order('created_at', desc=False)             .execute()
+
+        # Processar e combinar os dados
+        history = []
+
+        if recovery_response.data and training_response.data:
+            recovery_df = pd.DataFrame(recovery_response.data)
+            training_df = pd.DataFrame(training_response.data)
+
+            # Converter timestamps para datetime
+            recovery_df['created_at'] = pd.to_datetime(recovery_df['created_at'])
+            training_df['created_at'] = pd.to_datetime(training_df['created_at'])
+
+            # Extrair data (sem hora)
+            recovery_df['date'] = recovery_df['created_at'].dt.date
+            training_df['date'] = training_df['created_at'].dt.date
+
+            # Combinar por data
+            for date in sorted(set(recovery_df['date'].tolist() + training_df['date'].tolist())):
+                day_recovery = recovery_df[recovery_df['date'] == date]
+                day_training = training_df[training_df['date'] == date]
+
+                if not day_recovery.empty and not day_training.empty:
+                    # Usar o último registro de cada dia
+                    recovery = day_recovery.iloc[-1]
+                    training = day_training.iloc[-1]
+
+                    # Calcular razão
+                    ratio = training['trimp'] / recovery['readiness_index'] if recovery['readiness_index'] > 0 else 0
+
+                    history.append({
+                        'date': date,
+                        'readiness_index': recovery['readiness_index'],
+                        'trimp': training['trimp'],
+                        'ratio': ratio,
+                        'psr': recovery['psr'],
+                        'sleep_hours': recovery['sleep_hours'],
+                        'sleep_quality': recovery['sleep_quality'],
+                        'waking_feeling': recovery['waking_feeling'],
+                        'rpe': training['rpe'],
+                        'duration': training['duration'],
+                        'training_type': training['training_type']
+                    })
+
+        return history
+    except Exception as e:
+        st.error(f"Erro ao buscar histórico: {e}")
+        return []
+
 # Função para fazer logout
 def logout():
     st.session_state.logged_in = False
@@ -252,7 +389,7 @@ def login_form():
     # Adicionar logo no topo
     add_logo()
 
-    st.title("Questionário de Prontidão para Treinamento")
+    st.title("Sintonia - Análise de Treino")
 
     tab1, tab2 = st.tabs(["Login", "Cadastro"])
 
@@ -302,7 +439,7 @@ def show_questionnaire():
     # Adicionar logo no topo
     add_logo()
 
-    st.title(f"Olá, {st.session_state.username}! 👋")
+    st.title(f"Avaliação de Prontidão - Olá, {st.session_state.username}! 👋")
 
     if st.session_state.is_admin:
         if st.sidebar.button("Painel de Administração"):
@@ -410,6 +547,224 @@ def show_questionnaire():
                 st.info("Sua prontidão está moderada. Reduza um pouco a intensidade do treino hoje.")
             else:
                 st.success("Sua prontidão está boa. Você pode realizar o treino conforme planejado.")
+
+# Função para exibir a análise pós-treino
+def show_post_training_analysis():
+    # Adicionar logo no topo
+    add_logo()
+
+    st.title(f"Análise Pós-Treino - Olá, {st.session_state.username}! 👋")
+
+    # Botões de navegação no sidebar
+    if st.session_state.is_admin:
+        if st.sidebar.button("Painel de Administração"):
+            st.session_state.show_admin = True
+            st.experimental_rerun()
+
+    if st.sidebar.button("Logout"):
+        logout()
+
+    # Tabs para diferentes partes da análise
+    tab1, tab2, tab3 = st.tabs(["Registrar Dados", "Visualizar Resultados", "Histórico"])
+
+    with tab1:
+        # Formulários para entrada de dados
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Dados de Recuperação")
+            with st.form("recovery_form"):
+                # PSR
+                st.markdown("##### PSR (Status de Recuperação Percebida)")
+                st.markdown("*0-2: Muito mal recuperado, 3-4: Mal recuperado, 5-6: Razoavelmente recuperado, 7-8: Bem recuperado, 9-10: Completamente recuperado*")
+                st.markdown("*Evidência: Laurent et al. (2011)*")
+                psr = st.slider("Como você avalia seu estado de recuperação?", 0, 10, 5)
+
+                # Horas de sono
+                st.markdown("##### Horas de Sono")
+                st.markdown("*Evidência: Mah et al. (2011) - 7-9h é o ideal para atletas*")
+                sleep_hours = st.number_input("Quantas horas você dormiu?", min_value=0.0, max_value=24.0, value=7.0, step=0.5)
+
+                # Qualidade do sono
+                st.markdown("##### Qualidade do Sono")
+                st.markdown("*1: Muito ruim, 2: Ruim, 3: Regular, 4: Boa, 5: Excelente*")
+                st.markdown("*Evidência: Fullagar et al. (2015)*")
+                sleep_quality = st.slider("Como você avalia a qualidade do seu sono?", 1, 5, 3)
+
+                # Sensação ao acordar
+                st.markdown("##### Sensação ao Acordar")
+                st.markdown("*1: Muito cansado, 2: Cansado, 3: Neutro, 4: Disposto, 5: Muito disposto*")
+                st.markdown("*Evidência: Saw et al. (2016)*")
+                waking_feeling = st.slider("Como você se sentiu ao acordar?", 1, 5, 3)
+
+                recovery_submit = st.form_submit_button("Salvar Dados de Recuperação")
+
+        with col2:
+            st.subheader("Dados do Treino")
+            with st.form("training_form"):
+                # PSE
+                st.markdown("##### PSE (Percepção Subjetiva de Esforço)")
+                st.markdown("*0: Repouso, 1-2: Muito fácil, 3-4: Fácil, 5-6: Moderado, 7-8: Difícil, 9-10: Máximo*")
+                st.markdown("*Evidência: Foster et al. (2001)*")
+                rpe = st.slider("Como você avalia o esforço do seu treino?", 0, 10, 5)
+
+                # Duração
+                st.markdown("##### Duração do Treino")
+                duration = st.number_input("Duração do treino (minutos)", min_value=0, max_value=600, value=60)
+
+                # Tipo de treino
+                st.markdown("##### Tipo de Treino")
+                st.markdown("*Evidência: Impellizzeri et al. (2004)*")
+                training_type = st.selectbox(
+                    "Qual foi o tipo principal do treino?",
+                    ["Resistência", "Força", "Velocidade/Potência", "Técnico", "Misto"]
+                )
+
+                # Data do treino
+                training_date = st.date_input("Data do treino", value=datetime.now())
+
+                training_submit = st.form_submit_button("Salvar Dados do Treino")
+
+        # Lógica para processar os formulários
+        if recovery_submit:
+            # Calcular índice de prontidão
+            readiness_index = 2 * psr + 1.5 * sleep_hours + sleep_quality + waking_feeling
+            st.success(f"Dados de recuperação salvos! Índice de Prontidão: {readiness_index:.1f}")
+
+            # Salvar no banco de dados
+            save_recovery_data(psr, sleep_hours, sleep_quality, waking_feeling, readiness_index)
+
+        if training_submit:
+            # Calcular TRIMP-PSE
+            trimp = rpe * duration
+            st.success(f"Dados do treino salvos! TRIMP-PSE: {trimp}")
+
+            # Salvar no banco de dados
+            save_training_data(rpe, duration, training_type, trimp, training_date)
+
+    with tab2:
+        st.subheader("Resultados da Análise")
+
+        # Buscar dados mais recentes
+        recovery_data = get_latest_recovery_data()
+        training_data = get_latest_training_data()
+
+        if recovery_data and training_data:
+            # Calcular razão de correspondência
+            readiness_index = recovery_data['readiness_index']
+            trimp = training_data['trimp']
+            ratio = trimp / readiness_index
+
+            # Exibir resultados
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Índice de Prontidão", f"{readiness_index:.1f}")
+                st.caption("*Baseado em: McLean et al. (2010) e Hooper et al. (1995)*")
+
+            with col2:
+                st.metric("TRIMP-PSE", f"{trimp}")
+                st.caption("*Baseado em: Foster et al. (1998, 2001)*")
+
+            with col3:
+                st.metric("Razão de Correspondência", f"{ratio:.2f}")
+                st.caption("*Baseado em: Gabbett (2016) e Halson (2014)*")
+
+            # Interpretação da razão
+            st.subheader("Interpretação")
+
+            if ratio < 0.8:
+                st.info("📊 **Reserva de capacidade** (Razão < 0.8)")
+                st.markdown("O treino poderia ter sido mais intenso considerando seu estado de recuperação. Você tem uma boa reserva de capacidade para aumentar a intensidade ou volume nas próximas sessões.")
+            elif ratio <= 1.2:
+                st.success("✅ **Carregamento adequado** (Razão entre 0.8 e 1.2)")
+                st.markdown("Equilíbrio ideal entre carga e recuperação. Você está treinando em um nível apropriado para seu estado atual de recuperação.")
+            else:
+                st.warning("⚠️ **Potencial sobrecarga** (Razão > 1.2)")
+                st.markdown("A carga de treino foi elevada para seu estado de recuperação atual. Considere priorizar a recuperação antes da próxima sessão intensa.")
+
+            # Gráfico de radar para visualizar componentes
+            st.subheader("Componentes da Recuperação")
+
+            # Preparar dados para o gráfico de radar
+            categories = ['PSR', 'Sono (h)', 'Qualidade Sono', 'Sensação ao Acordar']
+
+            # Normalizar valores para escala 0-1
+            psr_norm = recovery_data['psr'] / 10
+            sleep_hours_norm = min(recovery_data['sleep_hours'] / 10, 1)  # Normalizar para máximo de 10h
+            sleep_quality_norm = recovery_data['sleep_quality'] / 5
+            waking_feeling_norm = recovery_data['waking_feeling'] / 5
+
+            values = [psr_norm, sleep_hours_norm, sleep_quality_norm, waking_feeling_norm]
+            values += values[:1]  # Fechar o gráfico
+
+            angles = np.linspace(0, 2*np.pi, len(categories), endpoint=False).tolist()
+            angles += angles[:1]  # Fechar o gráfico
+
+            fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+            ax.plot(angles, values, linewidth=2, linestyle='solid')
+            ax.fill(angles, values, alpha=0.25)
+            ax.set_thetagrids(np.degrees(angles[:-1]), categories)
+            ax.set_ylim(0, 1)
+            ax.grid(True)
+            ax.set_title("Perfil de Recuperação", size=20, y=1.05)
+
+            st.pyplot(fig)
+        else:
+            st.info("Registre dados de recuperação e treino para visualizar os resultados da análise.")
+
+    with tab3:
+        st.subheader("Histórico de Treinos e Recuperação")
+
+        # Seletor de período
+        period = st.selectbox("Período", [7, 14, 30], format_func=lambda x: f"Últimos {x} dias")
+
+        # Buscar histórico
+        history = get_training_recovery_history(period)
+
+        if history:
+            # Criar DataFrame
+            df = pd.DataFrame(history)
+
+            # Gráfico de tendências
+            st.subheader("Tendências ao Longo do Tempo")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.plot(df['date'], df['readiness_index'], 'b-o', label='Índice de Prontidão')
+            ax.plot(df['date'], df['trimp'], 'r-o', label='TRIMP-PSE')
+            ax.set_title('Índice de Prontidão vs TRIMP-PSE')
+            ax.set_xlabel('Data')
+            ax.legend()
+            ax.grid(True)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            st.pyplot(fig)
+
+            # Gráfico da razão
+            st.subheader("Razão de Correspondência")
+            fig2, ax2 = plt.subplots(figsize=(10, 6))
+
+            # Adicionar linhas de referência
+            ax2.axhline(y=0.8, color='g', linestyle='--', alpha=0.5)
+            ax2.axhline(y=1.2, color='r', linestyle='--', alpha=0.5)
+
+            # Plotar razão
+            scatter = ax2.scatter(df['date'], df['ratio'], c=df['ratio'].apply(lambda x: 'green' if x < 0.8 else 'red' if x > 1.2 else 'blue'), s=100)
+
+            ax2.set_title('Razão de Correspondência (TRIMP/Prontidão)')
+            ax2.set_xlabel('Data')
+            ax2.set_ylabel('Razão')
+            ax2.grid(True)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            st.pyplot(fig2)
+
+            # Tabela de dados
+            st.subheader("Dados Detalhados")
+            display_df = df[['date', 'readiness_index', 'trimp', 'ratio', 'psr', 'sleep_hours', 'sleep_quality', 'waking_feeling', 'rpe', 'duration', 'training_type']]
+            display_df.columns = ['Data', 'Índice de Prontidão', 'TRIMP', 'Razão', 'PSR', 'Horas de Sono', 'Qualidade do Sono', 'Sensação ao Acordar', 'PSE', 'Duração (min)', 'Tipo de Treino']
+            st.dataframe(display_df)
+        else:
+            st.info("Nenhum dado histórico encontrado para o período selecionado.")
 
 # Função para exibir o painel de administração
 def admin_dashboard():
@@ -555,10 +910,24 @@ def main():
 
         if not st.session_state.logged_in:
             login_form()
-        elif st.session_state.is_admin and st.session_state.show_admin:
-            admin_dashboard()
         else:
-            show_questionnaire()
+            # Adicionar seleção de modo no sidebar
+            app_mode = st.sidebar.radio(
+                "Selecione o modo:",
+                ["Avaliação de Prontidão", "Análise Pós-Treino"]
+            )
+
+            st.session_state.app_mode = app_mode
+
+            if app_mode == "Avaliação de Prontidão":
+                # Código existente do Sintonia
+                if st.session_state.is_admin and st.session_state.show_admin:
+                    admin_dashboard()
+                else:
+                    show_questionnaire()
+            else:
+                # Nova funcionalidade
+                show_post_training_analysis()
     except Exception as e:
         st.error(f"Erro na aplicação: {e}")
         st.info("Tente recarregar a página ou entre em contato com o administrador.")
