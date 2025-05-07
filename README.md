@@ -1,42 +1,54 @@
+# Sintonia - Análise de Treino
 
-# Questionário de Prontidão para Treinamento
+Este aplicativo oferece duas funcionalidades principais:
 
-Este aplicativo permite que atletas avaliem sua prontidão para treinamento diariamente, ajustando a carga de treinamento com base em fatores como qualidade do sono, dor muscular, fadiga, estresse e outros indicadores importantes.
+1. **Avaliação de Prontidão (Sintonia)**: Avalia a prontidão para treino com base em diversos fatores como sono, fadiga, etc.
+2. **Análise Pós-Treino**: Nova funcionalidade que analisa a relação entre recuperação e carga de treino.
 
-## Arquivos
+## Instruções de Instalação
 
-- `app.py`: Aplicativo principal
-- `test.py`: Aplicativo de teste para verificar a configuração
-- `requirements.txt`: Dependências do projeto
+### 1. Configuração do Banco de Dados
 
-## Configuração
+Antes de executar o aplicativo, você precisa configurar as tabelas no Supabase:
 
-### Pré-requisitos
+1. Faça login no seu painel do Supabase
+2. Vá para a seção "SQL Editor"
+3. Crie um novo script e cole o conteúdo do arquivo `create_tables.sql`
+4. Execute o script para criar as novas tabelas
 
-- Python 3.7+
-- Conta no Supabase (https://supabase.com)
+### 2. Configuração do Aplicativo
 
-### Instalação
+1. Faça upload do arquivo `app.py` para seu repositório GitHub
+2. Certifique-se de que o arquivo `.streamlit/secrets.toml` contém suas credenciais do Supabase:
 
-1. Clone o repositório
-2. Instale as dependências: `pip install -r requirements.txt`
-3. Configure as credenciais do Supabase em `.streamlit/secrets.toml` ou nas configurações do Streamlit Cloud
+```toml
+SUPABASE_URL = "sua_url_do_supabase"
+SUPABASE_KEY = "sua_chave_do_supabase"
+```
 
-### Banco de Dados
+3. Implante o aplicativo no Render ou na plataforma de sua preferência
 
-O aplicativo utiliza duas tabelas principais:
+## Funcionalidades
 
-1. **users**: Armazena informações dos usuários
-2. **assessments**: Armazena as avaliações de prontidão
+### Avaliação de Prontidão (Sintonia)
+- Questionário de prontidão para treino
+- Cálculo de ajuste de carga com base na prontidão
+- Visualização de histórico de avaliações
 
-## Implantação
+### Análise Pós-Treino (Nova)
+- Registro de dados de recuperação (PSR, sono, etc.)
+- Registro de dados de treino (PSE, duração, tipo)
+- Cálculo da razão entre carga e recuperação
+- Visualização de tendências ao longo do tempo
+- Recomendações baseadas em evidências científicas
 
-Para implantar no Streamlit Cloud:
+## Referências Científicas
 
-1. Faça upload do código para um repositório GitHub
-2. Conecte o repositório ao Streamlit Cloud
-3. Configure os segredos (SUPABASE_URL e SUPABASE_KEY)
-
-## Baseado em Evidências Científicas
-
-Este questionário foi desenvolvido com base em pesquisas científicas sobre monitoramento de carga de treinamento, fadiga e recuperação em atletas.
+- Laurent et al. (2011): Validação da escala PSR
+- Mah et al. (2011): Importância do sono para atletas
+- Fullagar et al. (2015): Impacto da qualidade do sono na recuperação
+- Saw et al. (2016): Monitoramento de bem-estar em atletas
+- Foster et al. (2001): Método PSE para quantificar carga de treino
+- Impellizzeri et al. (2004): Impacto de diferentes tipos de treino
+- McLean et al. (2010) e Hooper et al. (1995): Índices de bem-estar
+- Gabbett (2016) e Halson (2014): Equilíbrio entre estresse e recuperação
