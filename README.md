@@ -1,51 +1,18 @@
 
-# Sintonia - Mental Assessment Integration
+# Sintonia - Aplicativo de Teste
 
-## Files Overview
-- `mental_assessment.py`: New module for mental assessments (anxiety, stress, mental fatigue)
-- `main.py`: Modified main application file with mental assessment integration
+Este é um aplicativo simplificado para testar a funcionalidade básica de autenticação no Streamlit.
 
-## Installation Instructions
+## Instruções
 
-1. Clone your existing Sintonia repository (if you haven't already):
-   ```
-   git clone https://github.com/your-username/sintonia.git
-   cd sintonia
-   ```
+1. Faça login com as seguintes credenciais:
+   - Usuário: demo
+   - Senha: demo123
 
-2. Add the new files to your repository:
-   - Place `mental_assessment.py` in the root directory of your project
-   - Replace your existing `main.py` with the new version
+2. Se o login funcionar, você verá uma mensagem de boas-vindas.
 
-3. Create a data directory for storing assessment results:
-   ```
-   mkdir -p data
-   ```
+3. Você pode fazer logout clicando no botão "Logout".
 
-4. Commit and push the changes:
-   ```
-   git add mental_assessment.py main.py
-   git commit -m "Add mental assessment functionality"
-   git push origin main
-   ```
+## Solução de problemas
 
-## Usage
-1. Run the application:
-   ```
-   python main.py
-   ```
-
-2. From the main menu, select "Avaliação Mental"
-
-3. Choose one of the three assessments:
-   - Ansiedade (GAD-7)
-   - Estresse (PSS-10)
-   - Fadiga Mental (MFS)
-
-4. Complete the questionnaire and view your results
-
-## Features
-- Three validated mental assessment questionnaires
-- Automatic scoring and interpretation
-- Personalized recommendations based on results
-- Results saved to JSON file for future reference
+Se encontrar erros relacionados a `st.experimental_rerun()`, verifique se o arquivo `app.py` foi atualizado corretamente no servidor.
