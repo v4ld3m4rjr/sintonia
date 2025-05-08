@@ -1,18 +1,29 @@
 
-# Sintonia - Aplicativo de Teste
+# Sintonia - Diagnóstico de Conexão
 
-Este é um aplicativo simplificado para testar a funcionalidade básica de autenticação no Streamlit.
+Este aplicativo de diagnóstico ajuda a verificar a conexão com o Supabase e testar operações de usuário.
 
-## Instruções
+## Como usar
 
-1. Faça login com as seguintes credenciais:
-   - Usuário: demo
-   - Senha: demo123
+1. **Teste de Conexão**
+   - Verifica se o aplicativo consegue se conectar ao Supabase
+   - Mostra informações sobre as credenciais encontradas
 
-2. Se o login funcionar, você verá uma mensagem de boas-vindas.
+2. **Teste de Login**
+   - Permite testar credenciais de login
+   - Mostra a resposta completa do Supabase para diagnóstico
 
-3. Você pode fazer logout clicando no botão "Logout".
+3. **Usuários Cadastrados**
+   - Lista todos os usuários no banco de dados
+   - Útil para verificar se os registros estão sendo salvos
 
-## Solução de problemas
+4. **Criar Usuário de Teste**
+   - Permite criar um usuário de teste rapidamente
+   - Mostra a resposta completa da operação
 
-Se encontrar erros relacionados a `st.experimental_rerun()`, verifique se o arquivo `app.py` foi atualizado corretamente no servidor.
+## Configuração
+
+Certifique-se de que as credenciais do Supabase estão configuradas:
+
+- No Render: Adicione as variáveis de ambiente `SUPABASE_URL` e `SUPABASE_KEY`
+- Localmente: Edite o arquivo `.streamlit/secrets.toml`
