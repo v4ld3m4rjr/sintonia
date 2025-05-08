@@ -1,54 +1,51 @@
-# Sintonia - Análise de Treino
 
-Este aplicativo oferece duas funcionalidades principais:
+# Sintonia - Mental Assessment Integration
 
-1. **Avaliação de Prontidão (Sintonia)**: Avalia a prontidão para treino com base em diversos fatores como sono, fadiga, etc.
-2. **Análise Pós-Treino**: Nova funcionalidade que analisa a relação entre recuperação e carga de treino.
+## Files Overview
+- `mental_assessment.py`: New module for mental assessments (anxiety, stress, mental fatigue)
+- `main.py`: Modified main application file with mental assessment integration
 
-## Instruções de Instalação
+## Installation Instructions
 
-### 1. Configuração do Banco de Dados
+1. Clone your existing Sintonia repository (if you haven't already):
+   ```
+   git clone https://github.com/your-username/sintonia.git
+   cd sintonia
+   ```
 
-Antes de executar o aplicativo, você precisa configurar as tabelas no Supabase:
+2. Add the new files to your repository:
+   - Place `mental_assessment.py` in the root directory of your project
+   - Replace your existing `main.py` with the new version
 
-1. Faça login no seu painel do Supabase
-2. Vá para a seção "SQL Editor"
-3. Crie um novo script e cole o conteúdo do arquivo `create_tables.sql`
-4. Execute o script para criar as novas tabelas
+3. Create a data directory for storing assessment results:
+   ```
+   mkdir -p data
+   ```
 
-### 2. Configuração do Aplicativo
+4. Commit and push the changes:
+   ```
+   git add mental_assessment.py main.py
+   git commit -m "Add mental assessment functionality"
+   git push origin main
+   ```
 
-1. Faça upload do arquivo `app.py` para seu repositório GitHub
-2. Certifique-se de que o arquivo `.streamlit/secrets.toml` contém suas credenciais do Supabase:
+## Usage
+1. Run the application:
+   ```
+   python main.py
+   ```
 
-```toml
-SUPABASE_URL = "sua_url_do_supabase"
-SUPABASE_KEY = "sua_chave_do_supabase"
-```
+2. From the main menu, select "Avaliação Mental"
 
-3. Implante o aplicativo no Render ou na plataforma de sua preferência
+3. Choose one of the three assessments:
+   - Ansiedade (GAD-7)
+   - Estresse (PSS-10)
+   - Fadiga Mental (MFS)
 
-## Funcionalidades
+4. Complete the questionnaire and view your results
 
-### Avaliação de Prontidão (Sintonia)
-- Questionário de prontidão para treino
-- Cálculo de ajuste de carga com base na prontidão
-- Visualização de histórico de avaliações
-
-### Análise Pós-Treino (Nova)
-- Registro de dados de recuperação (PSR, sono, etc.)
-- Registro de dados de treino (PSE, duração, tipo)
-- Cálculo da razão entre carga e recuperação
-- Visualização de tendências ao longo do tempo
-- Recomendações baseadas em evidências científicas
-
-## Referências Científicas
-
-- Laurent et al. (2011): Validação da escala PSR
-- Mah et al. (2011): Importância do sono para atletas
-- Fullagar et al. (2015): Impacto da qualidade do sono na recuperação
-- Saw et al. (2016): Monitoramento de bem-estar em atletas
-- Foster et al. (2001): Método PSE para quantificar carga de treino
-- Impellizzeri et al. (2004): Impacto de diferentes tipos de treino
-- McLean et al. (2010) e Hooper et al. (1995): Índices de bem-estar
-- Gabbett (2016) e Halson (2014): Equilíbrio entre estresse e recuperação
+## Features
+- Three validated mental assessment questionnaires
+- Automatic scoring and interpretation
+- Personalized recommendations based on results
+- Results saved to JSON file for future reference
