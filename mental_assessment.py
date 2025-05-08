@@ -1,486 +1,542 @@
 
-# mental_assessment.py
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import json
-from datetime import datetime
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
 import supabase
-import os
-from dotenv import load_dotenv
 
-# Carregar variáveis de ambiente
-load_dotenv()
+def init_connection():
+    """Inicializa a conexão com o Supabase."""
+    client = supabase.create_client(
+        st.secrets["supabase_url"],
+        st.secrets["supabase_key"]
+    )
+    return client
 
-# Configuração do Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+def get_user_id():
+    """Obtém o ID do usuário logado."""
+    if 'user_id' in st.session_state:
+        return st.session_state.user_id
+    return None
 
-# Inicializar cliente Supabase
-supabase_client = supabase.create_client(SUPABASE_URL, SUPABASE_KEY)
+def mental_assessment_module():
+    """Módulo principal de avaliação mental."""
+    st.header("Avaliação Mental")
 
-# Definição dos questionários
-questionnaires = {
-    "anxiety": {
-        "title": "Avaliação de Ansiedade (GAD-7)",
-        "questions": [
-            "Sentir-se nervoso, ansioso ou muito tenso",
-            "Não ser capaz de impedir ou de controlar as preocupações",
-            "Preocupar-se muito com diversas coisas",
-            "Dificuldade para relaxar",
-            "Ficar tão agitado que se torna difícil permanecer sentado",
-            "Ficar facilmente aborrecido ou irritado",
-            "Sentir medo como se algo terrível fosse acontecer"
-        ],
-        "options": ["Nunca", "Vários dias", "Mais da metade dos dias", "Quase todos os dias"],
-        "scores": [0, 1, 2, 3]
-    },
-    "stress": {
-        "title": "Escala de Estresse Percebido (PSS-10)",
-        "questions": [
-            "Você tem ficado triste por causa de algo que aconteceu inesperadamente?",
-            "Você tem se sentido incapaz de controlar as coisas importantes em sua vida?",
-            "Você tem se sentido nervoso e estressado?",
-            "Você tem tratado com sucesso dos problemas difíceis da vida?",
-            "Você tem sentido que está lidando bem com as mudanças importantes que estão ocorrendo em sua vida?",
-            "Você tem se sentido confiante na sua habilidade de resolver problemas pessoais?",
-            "Você tem sentido que as coisas estão acontecendo de acordo com a sua vontade?",
-            "Você tem achado que não conseguiria lidar com todas as coisas que você tem que fazer?",
-            "Você tem conseguido controlar as irritações em sua vida?",
-            "Você tem sentido que as coisas estão sob o seu controle?"
-        ],
-        "options": ["Nunca", "Quase nunca", "Às vezes", "Frequentemente", "Muito frequentemente"],
-        "scores": [0, 1, 2, 3, 4],
-        "reverse_items": [3, 4, 5, 6, 9]  # 0-indexed items that need reverse scoring
-    },
-    "mental_fatigue": {
-        "title": "Escala de Fadiga Mental (MFS)",
-        "questions": [
-            "Fadiga em geral",
-            "Necessidade de mais sono/descanso",
-            "Sonolência/torpor",
-            "Irritabilidade",
-            "Sensibilidade ao estresse",
-            "Diminuição da concentração",
-            "Diminuição da memória",
-            "Tempo de recuperação prolongado",
-            "Diminuição da tolerância a ruídos",
-            "Diminuição da tolerância à luz",
-            "Diminuição da tolerância a situações sociais",
-            "Diminuição da iniciativa/capacidade de começar atividades",
-            "Diminuição da resistência/capacidade de lidar com situações estressantes",
-            "Diminuição da capacidade de realizar várias tarefas simultaneamente"
-        ],
-        "options": ["Nunca presente", "Presente, mas não perturbador", "Presente, perturbador mas não severo", "Presente e severo"],
-        "scores": [0, 1, 2, 3]
-    }
-}
+    tabs = st.tabs(["Avaliação de Prontidão", "Análise Pós-Treino", "Histórico"])
 
-def interpret_score(assessment_type, score):
-    """Interpreta a pontuação com base no tipo de avaliação"""
-    if assessment_type == "anxiety":
-        if score < 5:
-            return "Mínima"
-        elif score < 10:
-            return "Leve"
-        elif score < 15:
-            return "Moderada"
-        else:
-            return "Severa"
+    with tabs[0]:
+        readiness_assessment()
 
-    elif assessment_type == "stress":
-        if score < 14:
-            return "Baixo"
-        elif score < 27:
-            return "Moderado"
-        else:
-            return "Alto"
+    with tabs[1]:
+        post_training_analysis()
 
-    elif assessment_type == "mental_fatigue":
-        if score < 10.5:
-            return "Baixa"
-        elif score < 21:
-            return "Moderada"
-        else:
-            return "Alta"
+    with tabs[2]:
+        history_view()
 
-    return "Não interpretado"
+def readiness_assessment():
+    """Interface para avaliação de prontidão."""
+    st.subheader("Avaliação de Prontidão")
 
-def get_recommendations(assessment_type, interpretation):
-    """Retorna recomendações com base no tipo de avaliação e interpretação"""
-    recommendations = []
+    with st.form("readiness_form"):
+        col1, col2 = st.columns(2)
 
-    if assessment_type == "anxiety":
-        if interpretation in ["Mínima", "Leve"]:
-            recommendations = [
-                "Pratique técnicas de respiração profunda diariamente",
-                "Mantenha uma rotina regular de exercícios físicos",
-                "Considere a prática de mindfulness ou meditação"
-            ]
-        else:  # Moderada ou Severa
-            recommendations = [
-                "Considere consultar um profissional de saúde mental",
-                "Pratique técnicas de respiração e relaxamento regularmente",
-                "Estabeleça uma rotina de sono saudável",
-                "Limite o consumo de cafeína e álcool",
-                "Pratique exercícios físicos regularmente"
-            ]
+        with col1:
+            date = st.date_input("Data", datetime.now())
+            sleep_quality = st.slider("Qualidade do Sono (1-10)", 1, 10, 5)
+            sleep_duration = st.number_input("Duração do Sono (horas)", 0.0, 12.0, 7.0, 0.5)
 
-    elif assessment_type == "stress":
-        if interpretation == "Baixo":
-            recommendations = [
-                "Continue com suas práticas atuais de gerenciamento de estresse",
-                "Mantenha um equilíbrio saudável entre trabalho e vida pessoal",
-                "Pratique atividades que você goste regularmente"
-            ]
-        elif interpretation == "Moderado":
-            recommendations = [
-                "Incorpore técnicas de relaxamento em sua rotina diária",
-                "Considere limitar o tempo em mídias sociais e notícias",
-                "Priorize o autocuidado e o descanso adequado",
-                "Pratique exercícios físicos regularmente"
-            ]
-        else:  # Alto
-            recommendations = [
-                "Considere consultar um profissional de saúde mental",
-                "Identifique e tente reduzir as principais fontes de estresse",
-                "Pratique técnicas de relaxamento diariamente",
-                "Estabeleça limites claros entre trabalho e vida pessoal",
-                "Priorize o sono e a alimentação saudável"
-            ]
+        with col2:
+            psr = st.slider("Percepção de Status de Recuperação (1-10)", 1, 10, 5)
+            waking_sensation = st.slider("Sensação ao Acordar (1-10)", 1, 10, 5)
+            stress_level = st.slider("Nível de Estresse (1-10, 10=baixo)", 1, 10, 5)
 
-    elif assessment_type == "mental_fatigue":
-        if interpretation == "Baixa":
-            recommendations = [
-                "Mantenha uma rotina regular de sono",
-                "Continue com pausas regulares durante atividades mentalmente exigentes",
-                "Pratique exercícios físicos regularmente"
-            ]
-        elif interpretation == "Moderada":
-            recommendations = [
-                "Aumente a frequência de pausas durante o trabalho mental",
-                "Considere técnicas de gerenciamento de energia",
-                "Priorize o sono de qualidade",
-                "Limite o tempo de tela, especialmente antes de dormir"
-            ]
-        else:  # Alta
-            recommendations = [
-                "Considere consultar um profissional de saúde",
-                "Implemente pausas frequentes e regulares durante atividades mentais",
-                "Pratique técnicas de recuperação cognitiva",
-                "Priorize o sono e o descanso adequado",
-                "Considere reduzir temporariamente a carga de trabalho mental"
-            ]
+        submit = st.form_submit_button("Salvar Avaliação")
 
-    return recommendations
+        if submit:
+            user_id = get_user_id()
+            if not user_id:
+                st.error("Usuário não logado.")
+                return
 
-def save_result_to_supabase(user_id, assessment_type, score, interpretation, date):
-    """Salva o resultado da avaliação no Supabase"""
-    try:
-        data = {
-            "user_id": user_id,
-            "assessment_type": assessment_type,
-            "score": score,
-            "interpretation": interpretation,
-            "date": date
-        }
-
-        # Inserir dados na tabela mental_assessments
-        response = supabase_client.table("mental_assessments").insert(data).execute()
-
-        if hasattr(response, 'error') and response.error:
-            st.error(f"Erro ao salvar dados: {response.error.message}")
-            return False
-
-        return True
-    except Exception as e:
-        st.error(f"Erro ao salvar dados: {str(e)}")
-        return False
-
-def get_user_assessment_history(user_id, assessment_type=None):
-    """Obtém o histórico de avaliações do usuário do Supabase"""
-    try:
-        query = supabase_client.table("mental_assessments").select("*").eq("user_id", user_id)
-
-        if assessment_type:
-            query = query.eq("assessment_type", assessment_type)
-
-        response = query.order("date", desc=False).execute()
-
-        if hasattr(response, 'error') and response.error:
-            st.error(f"Erro ao buscar dados: {response.error.message}")
-            return []
-
-        return response.data
-    except Exception as e:
-        st.error(f"Erro ao buscar dados: {str(e)}")
-        return []
-
-def plot_assessment_history(history, assessment_type):
-    """Cria um gráfico do histórico de avaliações"""
-    if not history:
-        return None
-
-    # Filtrar apenas o tipo de avaliação desejado
-    filtered_history = [item for item in history if item['assessment_type'] == assessment_type]
-
-    if not filtered_history:
-        return None
-
-    # Preparar dados para o gráfico
-    dates = [item['date'] for item in filtered_history]
-    scores = [item['score'] for item in filtered_history]
-
-    # Criar figura
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(dates, scores, marker='o', linestyle='-', color='#1f77b4')
-
-    # Adicionar título e rótulos
-    title = f"Histórico de {questionnaires[assessment_type]['title']}"
-    ax.set_title(title)
-    ax.set_xlabel("Data")
-    ax.set_ylabel("Pontuação")
-
-    # Adicionar grade
-    ax.grid(True, linestyle='--', alpha=0.7)
-
-    # Rotacionar datas no eixo x para melhor legibilidade
-    plt.xticks(rotation=45)
-
-    # Ajustar layout
-    plt.tight_layout()
-
-    return fig
-
-def mental_assessment_page():
-    """Página principal de avaliação mental"""
-    st.title("Avaliação Mental")
-
-    # Verificar se o usuário está logado
-    if 'user_id' not in st.session_state:
-        st.warning("Por favor, faça login para acessar as avaliações mentais.")
-        return
-
-    user_id = st.session_state['user_id']
-
-    # Tabs para diferentes seções
-    tab1, tab2 = st.tabs(["Nova Avaliação", "Histórico"])
-
-    with tab1:
-        st.header("Nova Avaliação")
-        st.write("Selecione uma avaliação para começar:")
-
-        # Seleção do tipo de avaliação
-        assessment_options = {
-            "anxiety": "Ansiedade (GAD-7)",
-            "stress": "Estresse (PSS-10)",
-            "mental_fatigue": "Fadiga Mental (MFS)"
-        }
-
-        assessment_type = st.selectbox(
-            "Tipo de Avaliação:",
-            options=list(assessment_options.keys()),
-            format_func=lambda x: assessment_options[x]
-        )
-
-        # Inicializar ou resetar as respostas se necessário
-        if 'current_assessment' not in st.session_state or st.session_state.current_assessment != assessment_type:
-            st.session_state.current_assessment = assessment_type
-            st.session_state.answers = []
-            st.session_state.current_question = 0
-            st.session_state.assessment_complete = False
-
-        # Mostrar questionário
-        if not st.session_state.assessment_complete:
-            questionnaire = questionnaires[assessment_type]
-
-            # Mostrar progresso
-            progress = st.progress((st.session_state.current_question) / len(questionnaire["questions"]))
-
-            # Mostrar questão atual
-            st.subheader(f"Questão {st.session_state.current_question + 1}/{len(questionnaire['questions'])}")
-            st.write(questionnaire["questions"][st.session_state.current_question])
-
-            # Opções de resposta
-            answer = st.radio(
-                "Sua resposta:",
-                options=questionnaire["options"],
-                key=f"q_{st.session_state.current_question}"
+            # Calcular índice de prontidão
+            readiness_index = calculate_readiness_index(
+                sleep_quality, sleep_duration, psr, waking_sensation, stress_level
             )
 
-            # Botões de navegação
-            col1, col2 = st.columns(2)
+            # Salvar no banco de dados
+            supabase_client = init_connection()
 
-            with col1:
-                if st.session_state.current_question > 0:
-                    if st.button("Anterior"):
-                        st.session_state.current_question -= 1
-                        st.experimental_rerun()
+            try:
+                data = {
+                    "user_id": user_id,
+                    "date": date.isoformat(),
+                    "sleep_quality": sleep_quality,
+                    "sleep_duration": sleep_duration,
+                    "psr": psr,
+                    "waking_sensation": waking_sensation,
+                    "stress_level": stress_level,
+                    "readiness_index": readiness_index
+                }
 
-            with col2:
-                if st.button("Próximo" if st.session_state.current_question < len(questionnaire["questions"]) - 1 else "Finalizar"):
-                    # Salvar resposta atual
-                    answer_index = questionnaire["options"].index(answer)
+                response = supabase_client.table("readiness_assessments").insert(data).execute()
 
-                    if len(st.session_state.answers) <= st.session_state.current_question:
-                        st.session_state.answers.append(answer_index)
-                    else:
-                        st.session_state.answers[st.session_state.current_question] = answer_index
+                if hasattr(response, 'error') and response.error:
+                    st.error(f"Erro ao salvar: {response.error.message}")
+                else:
+                    st.success("Avaliação salva com sucesso!")
+                    display_readiness_result(readiness_index)
+            except Exception as e:
+                st.error(f"Erro ao salvar: {str(e)}")
 
-                    # Avançar para próxima questão ou finalizar
-                    if st.session_state.current_question < len(questionnaire["questions"]) - 1:
-                        st.session_state.current_question += 1
-                    else:
-                        # Calcular resultado
-                        total_score = 0
-                        for i, answer_index in enumerate(st.session_state.answers):
-                            score = questionnaire["scores"][answer_index]
+def calculate_readiness_index(sleep_quality, sleep_duration, psr, waking_sensation, stress_level):
+    """Calcula o índice de prontidão com base nos parâmetros fornecidos."""
+    # Pesos para cada componente
+    weights = {
+        "sleep_quality": 0.25,
+        "sleep_duration": 0.15,
+        "psr": 0.30,
+        "waking_sensation": 0.20,
+        "stress_level": 0.10
+    }
 
-                            # Lidar com pontuação reversa para PSS-10
-                            if assessment_type == "stress" and i in questionnaire.get("reverse_items", []):
-                                score = 4 - score  # Reverter a pontuação (0->4, 1->3, 2->2, 3->1, 4->0)
+    # Normalizar duração do sono (considerando 8h como ideal)
+    normalized_sleep = min(sleep_duration / 8.0, 1.0) * 10
 
-                            total_score += score
+    # Calcular índice ponderado
+    readiness_index = (
+        weights["sleep_quality"] * sleep_quality +
+        weights["sleep_duration"] * normalized_sleep +
+        weights["psr"] * psr +
+        weights["waking_sensation"] * waking_sensation +
+        weights["stress_level"] * stress_level
+    )
 
-                        # Interpretar pontuação
-                        interpretation = interpret_score(assessment_type, total_score)
+    return round(readiness_index, 1)
 
-                        # Salvar resultado no Supabase
-                        current_date = datetime.now().isoformat()
-                        save_result_to_supabase(user_id, assessment_type, total_score, interpretation, current_date)
+def display_readiness_result(readiness_index):
+    """Exibe o resultado da avaliação de prontidão."""
+    st.subheader("Resultado da Avaliação")
 
-                        # Armazenar resultado na sessão
-                        st.session_state.result = {
-                            "score": total_score,
-                            "interpretation": interpretation,
-                            "date": current_date
-                        }
+    # Criar gráfico de gauge
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=readiness_index,
+        domain={'x': [0, 1], 'y': [0, 1]},
+        title={'text': "Índice de Prontidão"},
+        gauge={
+            'axis': {'range': [0, 10]},
+            'bar': {'color': "darkblue"},
+            'steps': [
+                {'range': [0, 4], 'color': "red"},
+                {'range': [4, 7], 'color': "yellow"},
+                {'range': [7, 10], 'color': "green"}
+            ],
+            'threshold': {
+                'line': {'color': "black", 'width': 4},
+                'thickness': 0.75,
+                'value': readiness_index
+            }
+        }
+    ))
 
-                        st.session_state.assessment_complete = True
+    st.plotly_chart(fig, use_container_width=True)
 
-                    st.experimental_rerun()
+    # Interpretação
+    st.subheader("Interpretação")
+    if readiness_index < 4:
+        st.warning("Baixa prontidão (< 4): Considere um treino leve ou recuperativo, ou até mesmo descanso.")
+    elif readiness_index < 7:
+        st.info("Prontidão moderada (4-7): Treino de intensidade moderada recomendado.")
+    else:
+        st.success("Alta prontidão (> 7): Você está bem recuperado e pronto para um treino de alta intensidade.")
 
-        # Mostrar resultados se a avaliação estiver completa
-        if st.session_state.get('assessment_complete', False):
-            st.subheader("Resultados")
+def post_training_analysis():
+    """Interface para análise pós-treino."""
+    st.subheader("Análise Pós-Treino")
 
-            result = st.session_state.result
-            questionnaire = questionnaires[assessment_type]
+    with st.form("post_training_form"):
+        col1, col2 = st.columns(2)
 
-            # Mostrar pontuação e interpretação
-            st.write(f"**Pontuação total:** {result['score']}")
-            st.write(f"**Interpretação:** {result['interpretation']}")
+        with col1:
+            date = st.date_input("Data do Treino", datetime.now())
+            training_type = st.selectbox(
+                "Tipo de Treino",
+                ["Corrida", "Ciclismo", "Natação", "Musculação", "Funcional", "Outro"]
+            )
+            pse = st.slider("Percepção Subjetiva de Esforço (1-10)", 1, 10, 5)
 
-            # Criar gráfico visual da pontuação
-            fig, ax = plt.subplots(figsize=(10, 2))
+        with col2:
+            duration = st.number_input("Duração (minutos)", 5, 300, 60, 5)
+            notes = st.text_area("Observações", height=100)
 
-            # Definir faixas de pontuação com base no tipo de avaliação
-            if assessment_type == "anxiety":
-                max_score = 21
-                ranges = [(0, 4, "Mínima", "#4CAF50"), 
-                          (5, 9, "Leve", "#8BC34A"), 
-                          (10, 14, "Moderada", "#FFC107"), 
-                          (15, 21, "Severa", "#F44336")]
-            elif assessment_type == "stress":
-                max_score = 40
-                ranges = [(0, 13, "Baixo", "#4CAF50"), 
-                          (14, 26, "Moderado", "#FFC107"), 
-                          (27, 40, "Alto", "#F44336")]
-            else:  # mental_fatigue
-                max_score = 42
-                ranges = [(0, 10.5, "Baixa", "#4CAF50"), 
-                          (10.5, 21, "Moderada", "#FFC107"), 
-                          (21, 42, "Alta", "#F44336")]
+        submit = st.form_submit_button("Salvar Análise")
 
-            # Criar barras para cada faixa
-            for start, end, label, color in ranges:
-                ax.barh([0], [end-start], left=[start], height=0.5, color=color, alpha=0.7)
-                ax.text((start+end)/2, 0, label, ha='center', va='center', color='black')
+        if submit:
+            user_id = get_user_id()
+            if not user_id:
+                st.error("Usuário não logado.")
+                return
 
-            # Marcar a pontuação do usuário
-            ax.plot([result['score'], result['score']], [-0.5, 0.5], 'k-', linewidth=2)
-            ax.plot(result['score'], 0, 'ko', markersize=10)
+            # Calcular TRIMP
+            trimp = calculate_trimp(pse, duration)
 
-            # Configurar eixos
-            ax.set_xlim(0, max_score)
-            ax.set_ylim(-0.5, 0.5)
-            ax.set_yticks([])
-            ax.set_xlabel("Pontuação")
-            ax.set_title(f"Sua pontuação: {result['score']} - {result['interpretation']}")
+            # Salvar no banco de dados
+            supabase_client = init_connection()
 
-            # Mostrar gráfico
-            st.pyplot(fig)
+            try:
+                data = {
+                    "user_id": user_id,
+                    "date": date.isoformat(),
+                    "training_type": training_type,
+                    "pse": pse,
+                    "duration": duration,
+                    "trimp": trimp,
+                    "notes": notes
+                }
 
-            # Mostrar recomendações
-            st.subheader("Recomendações")
-            recommendations = get_recommendations(assessment_type, result['interpretation'])
-            for rec in recommendations:
-                st.write(f"• {rec}")
+                response = supabase_client.table("training_sessions").insert(data).execute()
 
-            # Botão para nova avaliação
-            if st.button("Iniciar Nova Avaliação"):
-                st.session_state.pop('current_assessment', None)
-                st.session_state.pop('answers', None)
-                st.session_state.pop('current_question', None)
-                st.session_state.pop('assessment_complete', None)
-                st.session_state.pop('result', None)
-                st.experimental_rerun()
+                if hasattr(response, 'error') and response.error:
+                    st.error(f"Erro ao salvar: {response.error.message}")
+                else:
+                    st.success("Análise salva com sucesso!")
 
-    with tab2:
-        st.header("Histórico de Avaliações")
+                    # Buscar avaliação de prontidão do mesmo dia
+                    readiness = get_readiness_for_date(user_id, date)
 
-        # Filtro de tipo de avaliação
-        history_assessment_type = st.selectbox(
-            "Filtrar por tipo:",
-            options=list(assessment_options.keys()) + ["todos"],
-            format_func=lambda x: assessment_options.get(x, "Todos os tipos"),
-            key="history_filter"
-        )
+                    display_training_analysis(trimp, pse, duration, readiness)
+            except Exception as e:
+                st.error(f"Erro ao salvar: {str(e)}")
 
-        # Buscar histórico do usuário
-        if history_assessment_type == "todos":
-            history = get_user_assessment_history(user_id)
+def calculate_trimp(pse, duration):
+    """Calcula o TRIMP (Training Impulse) com base na PSE e duração."""
+    # Fórmula simplificada: TRIMP = PSE * Duração (em minutos)
+    return round(pse * duration / 10, 1)
+
+def get_readiness_for_date(user_id, date):
+    """Obtém a avaliação de prontidão para uma data específica."""
+    supabase_client = init_connection()
+
+    try:
+        response = supabase_client.table("readiness_assessments")             .select("*")             .eq("user_id", user_id)             .eq("date", date.isoformat())             .execute()
+
+        if hasattr(response, 'data') and response.data:
+            return response.data[0]
+    except Exception as e:
+        st.error(f"Erro ao buscar avaliação de prontidão: {str(e)}")
+
+    return None
+
+def display_training_analysis(trimp, pse, duration, readiness=None):
+    """Exibe a análise do treino."""
+    st.subheader("Análise do Treino")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Gráfico de TRIMP
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=trimp,
+            domain={'x': [0, 1], 'y': [0, 1]},
+            title={'text': "TRIMP (Carga de Treino)"},
+            gauge={
+                'axis': {'range': [0, 200]},
+                'bar': {'color': "darkblue"},
+                'steps': [
+                    {'range': [0, 50], 'color': "lightgreen"},
+                    {'range': [50, 100], 'color': "yellow"},
+                    {'range': [100, 150], 'color': "orange"},
+                    {'range': [150, 200], 'color': "red"}
+                ],
+                'threshold': {
+                    'line': {'color': "black", 'width': 4},
+                    'thickness': 0.75,
+                    'value': trimp
+                }
+            }
+        ))
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        # Interpretação do TRIMP
+        st.subheader("Interpretação da Carga")
+        if trimp < 50:
+            st.info("Carga baixa (< 50): Treino leve ou recuperativo.")
+        elif trimp < 100:
+            st.success("Carga moderada (50-100): Treino de intensidade moderada.")
+        elif trimp < 150:
+            st.warning("Carga alta (100-150): Treino intenso, monitore a recuperação.")
         else:
-            history = get_user_assessment_history(user_id, history_assessment_type)
+            st.error("Carga muito alta (> 150): Treino extremamente intenso, priorize a recuperação.")
 
-        if not history:
-            st.info("Nenhuma avaliação encontrada no histórico.")
+    # Se tiver dados de prontidão, mostrar relação
+    if readiness:
+        st.subheader("Relação Prontidão vs. Carga")
+
+        readiness_index = readiness["readiness_index"]
+
+        # Criar dataframe para o gráfico
+        df = pd.DataFrame({
+            'Métrica': ['Índice de Prontidão', 'TRIMP Normalizado'],
+            'Valor': [readiness_index, min(trimp/20, 10)]  # Normalizar TRIMP para escala de 0-10
+        })
+
+        fig = px.bar(df, x='Métrica', y='Valor', color='Métrica',
+                    color_discrete_map={'Índice de Prontidão': 'blue', 'TRIMP Normalizado': 'orange'},
+                    range_y=[0, 10])
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Análise da relação
+        ratio = readiness_index / (trimp/20)
+
+        st.subheader("Análise da Relação")
+        if ratio < 0.8:
+            st.warning("A carga de treino foi significativamente maior que sua prontidão. Isso pode levar a recuperação inadequada e maior risco de overtraining.")
+        elif ratio > 1.2:
+            st.info("Sua prontidão era maior que a carga de treino aplicada. Você poderia ter realizado um treino mais intenso.")
         else:
-            # Mostrar tabela de histórico
-            history_df = pd.DataFrame(history)
-            history_df['date'] = pd.to_datetime(history_df['date']).dt.strftime('%d/%m/%Y %H:%M')
-            history_df['assessment_type'] = history_df['assessment_type'].map({
-                'anxiety': 'Ansiedade',
-                'stress': 'Estresse',
-                'mental_fatigue': 'Fadiga Mental'
-            })
+            st.success("Boa correspondência entre prontidão e carga de treino. Equilíbrio adequado.")
 
-            # Renomear colunas para português
-            history_df = history_df.rename(columns={
-                'assessment_type': 'Tipo',
-                'score': 'Pontuação',
-                'interpretation': 'Interpretação',
-                'date': 'Data'
-            })
+def history_view():
+    """Visualização do histórico de avaliações e treinos."""
+    st.subheader("Histórico")
 
-            # Selecionar e ordenar colunas
-            display_df = history_df[['Data', 'Tipo', 'Pontuação', 'Interpretação']].sort_values('Data', ascending=False)
+    user_id = get_user_id()
+    if not user_id:
+        st.error("Usuário não logado.")
+        return
 
-            st.dataframe(display_df)
+    # Período de análise
+    period = st.selectbox(
+        "Período de Análise",
+        ["Última Semana", "Últimos 14 dias", "Último Mês", "Últimos 3 Meses"]
+    )
 
-            # Mostrar gráficos para cada tipo de avaliação
-            st.subheader("Gráficos de Progresso")
+    # Determinar data inicial com base no período
+    end_date = datetime.now().date()
+    if period == "Última Semana":
+        start_date = end_date - timedelta(days=7)
+    elif period == "Últimos 14 dias":
+        start_date = end_date - timedelta(days=14)
+    elif period == "Último Mês":
+        start_date = end_date - timedelta(days=30)
+    else:  # Últimos 3 Meses
+        start_date = end_date - timedelta(days=90)
 
-            if history_assessment_type == "todos":
-                # Mostrar gráficos para cada tipo
-                for assessment_type in assessment_options.keys():
-                    fig = plot_assessment_history(history, assessment_type)
-                    if fig:
-                        st.write(f"### {assessment_options[assessment_type]}")
-                        st.pyplot(fig)
-            else:
-                # Mostrar gráfico apenas para o tipo selecionado
-                fig = plot_assessment_history(history, history_assessment_type)
-                if fig:
-                    st.pyplot(fig)
+    # Buscar dados
+    readiness_data = get_readiness_history(user_id, start_date, end_date)
+    training_data = get_training_history(user_id, start_date, end_date)
+
+    if not readiness_data and not training_data:
+        st.info("Nenhum dado encontrado para o período selecionado.")
+        return
+
+    # Exibir gráficos
+    if readiness_data:
+        display_readiness_history(readiness_data)
+
+    if training_data:
+        display_training_history(training_data)
+
+    if readiness_data and training_data:
+        display_combined_analysis(readiness_data, training_data)
+
+def get_readiness_history(user_id, start_date, end_date):
+    """Obtém o histórico de avaliações de prontidão."""
+    supabase_client = init_connection()
+
+    try:
+        response = supabase_client.table("readiness_assessments")             .select("*")             .eq("user_id", user_id)             .gte("date", start_date.isoformat())             .lte("date", end_date.isoformat())             .order("date")             .execute()
+
+        if hasattr(response, 'data') and response.data:
+            return pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"Erro ao buscar histórico de prontidão: {str(e)}")
+
+    return None
+
+def get_training_history(user_id, start_date, end_date):
+    """Obtém o histórico de sessões de treino."""
+    supabase_client = init_connection()
+
+    try:
+        response = supabase_client.table("training_sessions")             .select("*")             .eq("user_id", user_id)             .gte("date", start_date.isoformat())             .lte("date", end_date.isoformat())             .order("date")             .execute()
+
+        if hasattr(response, 'data') and response.data:
+            return pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"Erro ao buscar histórico de treinos: {str(e)}")
+
+    return None
+
+def display_readiness_history(df):
+    """Exibe o histórico de avaliações de prontidão."""
+    st.subheader("Histórico de Prontidão")
+
+    # Converter coluna de data para datetime
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Gráfico de linha para índice de prontidão
+    fig = px.line(df, x='date', y='readiness_index', 
+                 title='Índice de Prontidão ao Longo do Tempo',
+                 labels={'date': 'Data', 'readiness_index': 'Índice de Prontidão'})
+
+    fig.update_layout(yaxis_range=[0, 10])
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Gráfico de componentes
+    components_df = df[['date', 'sleep_quality', 'sleep_duration', 'psr', 'waking_sensation', 'stress_level']]
+    components_df['sleep_duration'] = components_df['sleep_duration'] / 1.2  # Normalizar para escala de 0-10
+
+    # Melt para formato longo
+    components_long = pd.melt(
+        components_df, 
+        id_vars=['date'], 
+        value_vars=['sleep_quality', 'sleep_duration', 'psr', 'waking_sensation', 'stress_level'],
+        var_name='Componente', 
+        value_name='Valor'
+    )
+
+    # Renomear componentes para exibição
+    component_names = {
+        'sleep_quality': 'Qualidade do Sono',
+        'sleep_duration': 'Duração do Sono',
+        'psr': 'PSR',
+        'waking_sensation': 'Sensação ao Acordar',
+        'stress_level': 'Nível de Estresse'
+    }
+
+    components_long['Componente'] = components_long['Componente'].map(component_names)
+
+    fig = px.line(components_long, x='date', y='Valor', color='Componente',
+                 title='Componentes de Prontidão ao Longo do Tempo',
+                 labels={'date': 'Data', 'Valor': 'Valor (0-10)'})
+
+    fig.update_layout(yaxis_range=[0, 10])
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_training_history(df):
+    """Exibe o histórico de sessões de treino."""
+    st.subheader("Histórico de Treinos")
+
+    # Converter coluna de data para datetime
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Gráfico de barras para TRIMP
+    fig = px.bar(df, x='date', y='trimp', color='training_type',
+                title='Carga de Treino (TRIMP) ao Longo do Tempo',
+                labels={'date': 'Data', 'trimp': 'TRIMP', 'training_type': 'Tipo de Treino'})
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Gráfico de linha para PSE
+    fig = px.line(df, x='date', y='pse',
+                 title='Percepção Subjetiva de Esforço ao Longo do Tempo',
+                 labels={'date': 'Data', 'pse': 'PSE (1-10)'})
+
+    fig.update_layout(yaxis_range=[0, 10])
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Carga acumulada por semana
+    df['week'] = df['date'].dt.isocalendar().week
+    df['year'] = df['date'].dt.isocalendar().year
+
+    weekly_load = df.groupby(['year', 'week'])['trimp'].sum().reset_index()
+    weekly_load['week_label'] = weekly_load['year'].astype(str) + '-W' + weekly_load['week'].astype(str)
+
+    fig = px.bar(weekly_load, x='week_label', y='trimp',
+                title='Carga Semanal Acumulada',
+                labels={'week_label': 'Semana', 'trimp': 'TRIMP Total'})
+
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_combined_analysis(readiness_df, training_df):
+    """Exibe análise combinada de prontidão e treino."""
+    st.subheader("Análise Combinada")
+
+    # Converter colunas de data para datetime
+    readiness_df['date'] = pd.to_datetime(readiness_df['date'])
+    training_df['date'] = pd.to_datetime(training_df['date'])
+
+    # Mesclar dataframes pela data
+    combined_df = pd.merge(
+        readiness_df[['date', 'readiness_index']],
+        training_df[['date', 'trimp']],
+        on='date',
+        how='inner'
+    )
+
+    if combined_df.empty:
+        st.info("Não há dados suficientes para análise combinada (dias com avaliação de prontidão e treino).")
+        return
+
+    # Normalizar TRIMP para escala de 0-10 para comparação
+    combined_df['trimp_normalized'] = combined_df['trimp'] / 20
+    combined_df['trimp_normalized'] = combined_df['trimp_normalized'].clip(upper=10)
+
+    # Calcular diferença
+    combined_df['difference'] = combined_df['readiness_index'] - combined_df['trimp_normalized']
+
+    # Gráfico de barras duplas
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=combined_df['date'],
+        y=combined_df['readiness_index'],
+        name='Índice de Prontidão',
+        marker_color='blue'
+    ))
+
+    fig.add_trace(go.Bar(
+        x=combined_df['date'],
+        y=combined_df['trimp_normalized'],
+        name='TRIMP Normalizado',
+        marker_color='orange'
+    ))
+
+    fig.update_layout(
+        title='Comparação: Prontidão vs. Carga de Treino',
+        xaxis_title='Data',
+        yaxis_title='Valor (0-10)',
+        barmode='group',
+        yaxis_range=[0, 10]
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Gráfico de diferença
+    fig = px.bar(
+        combined_df, 
+        x='date', 
+        y='difference',
+        title='Diferença: Prontidão - Carga Normalizada',
+        labels={'date': 'Data', 'difference': 'Diferença'},
+        color='difference',
+        color_continuous_scale=['red', 'yellow', 'green'],
+        range_color=[-5, 5]
+    )
+
+    fig.add_hline(y=0, line_dash="dash", line_color="gray")
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Análise de correlação
+    correlation = combined_df['readiness_index'].corr(combined_df['trimp_normalized'])
+
+    st.subheader("Correlação")
+    st.write(f"Correlação entre Prontidão e Carga de Treino: {correlation:.2f}")
+
+    if correlation > 0.7:
+        st.success("Forte correlação positiva: Você tende a treinar mais intensamente quando está bem recuperado.")
+    elif correlation > 0.3:
+        st.info("Correlação positiva moderada: Há alguma relação entre sua prontidão e intensidade de treino.")
+    elif correlation > -0.3:
+        st.warning("Correlação fraca: Não há um padrão claro entre sua prontidão e intensidade de treino.")
+    else:
+        st.error("Correlação negativa: Você tende a treinar mais intensamente quando está menos recuperado, o que pode aumentar o risco de overtraining.")

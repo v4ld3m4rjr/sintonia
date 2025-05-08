@@ -1,40 +1,128 @@
 
-# Código para integrar no app.py existente
+import streamlit as st
+from mental_assessment import mental_assessment_module
 
-# 1. Importe o módulo de avaliação mental
-from mental_assessment import mental_assessment_page
+# Configuração da página
+st.set_page_config(
+    page_title="Sintonia",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# 2. Adicione a opção de avaliação mental no menu principal
-# Exemplo de como pode ser a estrutura do seu menu:
+# Função para autenticação
+def authenticate():
+    """Função de autenticação de usuários."""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+        st.session_state.user_id = None
 
+    if not st.session_state.authenticated:
+        with st.form("login_form"):
+            st.subheader("Login")
+            username = st.text_input("Usuário")
+            password = st.text_input("Senha", type="password")
+            submit = st.form_submit_button("Entrar")
+
+            if submit:
+                # Aqui você implementaria a verificação real de credenciais
+                # Exemplo simplificado:
+                if username == "demo" and password == "demo123":
+                    st.session_state.authenticated = True
+                    st.session_state.user_id = "demo_user_id"
+                    st.session_state.username = username
+                    st.experimental_rerun()
+                else:
+                    st.error("Credenciais inválidas")
+
+        # Opção para criar conta
+        with st.expander("Criar nova conta"):
+            with st.form("signup_form"):
+                st.subheader("Cadastro")
+                new_username = st.text_input("Novo Usuário")
+                new_password = st.text_input("Nova Senha", type="password")
+                confirm_password = st.text_input("Confirmar Senha", type="password")
+                submit = st.form_submit_button("Cadastrar")
+
+                if submit:
+                    # Implementar lógica de cadastro
+                    if new_password != confirm_password:
+                        st.error("As senhas não coincidem")
+                    else:
+                        # Aqui você implementaria o cadastro real
+                        st.success("Conta criada com sucesso! Faça login.")
+
+        return False
+    return True
+
+# Função principal do aplicativo
 def main():
-    st.sidebar.title("Sintonia")
+    # Verificar autenticação
+    if not authenticate():
+        return
 
-    # Menu de navegação
-    menu = ["Início", "Avaliação de Prontidão", "Avaliação TRIMP", "Avaliação Mental", "Configurações"]
-    choice = st.sidebar.selectbox("Menu", menu)
+    # Sidebar para navegação
+    with st.sidebar:
+        st.title("Sintonia")
+        st.write(f"Olá, {st.session_state.username}!")
 
-    if choice == "Início":
-        home_page()
-    elif choice == "Avaliação de Prontidão":
-        readiness_assessment_page()
-    elif choice == "Avaliação TRIMP":
-        trimp_evaluation_page()
-    elif choice == "Avaliação Mental":
-        # Chame a função do módulo de avaliação mental
-        mental_assessment_page()
-    elif choice == "Configurações":
-        settings_page()
+        # Menu de navegação
+        page = st.radio(
+            "Navegação",
+            ["Início", "Avaliação Mental", "Configurações", "Sair"]
+        )
 
-# 3. Certifique-se de que o Supabase está configurado corretamente
-# Você deve ter um arquivo .env com as credenciais do Supabase:
-# SUPABASE_URL=sua_url_do_supabase
-# SUPABASE_KEY=sua_chave_do_supabase
+        # Botão de logout
+        if st.button("Logout"):
+            st.session_state.authenticated = False
+            st.session_state.user_id = None
+            st.experimental_rerun()
 
-# 4. Crie a tabela mental_assessments no Supabase com a seguinte estrutura:
-# - id: uuid (primary key)
-# - user_id: uuid (foreign key para users)
-# - assessment_type: text (anxiety, stress, mental_fatigue)
-# - score: integer
-# - interpretation: text
-# - date: timestamp with timezone
+    # Conteúdo principal
+    if page == "Início":
+        st.title("Bem-vindo ao Sintonia")
+        st.write("Selecione uma opção no menu lateral para começar.")
+
+        # Cards informativos
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.info("**Avaliação Mental**  
+Registre sua prontidão para treino e analise seus resultados.")
+
+        with col2:
+            st.info("**Configurações**  
+Personalize sua experiência no aplicativo.")
+
+    elif page == "Avaliação Mental":
+        # Integração com o módulo de avaliação mental
+        mental_assessment_module()
+
+    elif page == "Configurações":
+        st.title("Configurações")
+
+        # Preferências do usuário
+        st.subheader("Preferências")
+
+        # Tema
+        theme = st.selectbox(
+            "Tema",
+            ["Claro", "Escuro", "Sistema"],
+            index=2
+        )
+
+        # Notificações
+        notifications = st.checkbox("Ativar notificações", value=True)
+
+        # Botão para salvar configurações
+        if st.button("Salvar Configurações"):
+            st.success("Configurações salvas com sucesso!")
+
+    elif page == "Sair":
+        st.session_state.authenticated = False
+        st.session_state.user_id = None
+        st.experimental_rerun()
+
+# Executar o aplicativo
+if __name__ == "__main__":
+    main()
