@@ -1,135 +1,126 @@
 
 import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import json
-import os
-from datetime import datetime
-import supabase
-from dotenv import load_dotenv
-
-# Importar os módulos de avaliação
-from mental_assessment import mental_assessment_page
-# Assumindo que estes módulos existem no seu projeto
-# from readiness_assessment import readiness_assessment_page
-# from trimp_evaluation import trimp_evaluation_page
-
-# Carregar variáveis de ambiente
-load_dotenv()
-
-# Configuração do Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-# Inicializar cliente Supabase
-supabase_client = supabase.create_client(SUPABASE_URL, SUPABASE_KEY)
+from mental_assessment import mental_assessment_module
 
 # Configuração da página
 st.set_page_config(
-    page_title="Sintonia - Análise de Treinamento",
-    page_icon="🏃",
+    page_title="Sintonia",
+    page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Função para verificar login
-def check_login():
-    if 'user_id' not in st.session_state:
-        st.session_state.user_id = "user123"  # Temporário para teste - substitua pela sua lógica de autenticação
-        # Na versão real, você deve verificar se o usuário está autenticado
-        # e redirecionar para a página de login se não estiver
+# Função para autenticação
+def authenticate():
+    """Função de autenticação de usuários."""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+        st.session_state.user_id = None
 
-# Página inicial
-def home_page():
-    st.title("Bem-vindo ao Sintonia")
-    st.subheader("Sua plataforma completa de análise de treinamento")
+    if not st.session_state.authenticated:
+        with st.form("login_form"):
+            st.subheader("Login")
+            username = st.text_input("Usuário")
+            password = st.text_input("Senha", type="password")
+            submit = st.form_submit_button("Entrar")
 
-    st.write("""
-    O Sintonia oferece ferramentas avançadas para monitorar e analisar seu treinamento:
+            if submit:
+                # Aqui você implementaria a verificação real de credenciais
+                # Exemplo simplificado:
+                if username == "demo" and password == "demo123":
+                    st.session_state.authenticated = True
+                    st.session_state.user_id = "demo_user_id"
+                    st.session_state.username = username
+                    st.experimental_rerun()
+                else:
+                    st.error("Credenciais inválidas")
 
-    - **Avaliação de Prontidão**: Avalie sua disposição para treinar
-    - **Avaliação TRIMP**: Analise a carga de treinamento
-    - **Avaliação Mental**: Monitore ansiedade, estresse e fadiga mental
+        # Opção para criar conta
+        with st.expander("Criar nova conta"):
+            with st.form("signup_form"):
+                st.subheader("Cadastro")
+                new_username = st.text_input("Novo Usuário")
+                new_password = st.text_input("Nova Senha", type="password")
+                confirm_password = st.text_input("Confirmar Senha", type="password")
+                submit = st.form_submit_button("Cadastrar")
 
-    Selecione uma opção no menu lateral para começar.
-    """)
+                if submit:
+                    # Implementar lógica de cadastro
+                    if new_password != confirm_password:
+                        st.error("As senhas não coincidem")
+                    else:
+                        # Aqui você implementaria o cadastro real
+                        st.success("Conta criada com sucesso! Faça login.")
 
-    # Mostrar estatísticas ou gráficos recentes
-    st.subheader("Resumo das suas avaliações recentes")
+        return False
+    return True
 
-    # Exemplo de gráfico (substitua por dados reais)
-    data = {
-        'Categoria': ['Prontidão', 'TRIMP', 'Ansiedade', 'Estresse', 'Fadiga Mental'],
-        'Valor': [7, 120, 5, 15, 8]
-    }
-    df = pd.DataFrame(data)
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.bar(df['Categoria'], df['Valor'], color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
-    ax.set_title('Últimas Avaliações')
-    ax.set_ylabel('Pontuação')
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
-
-    st.pyplot(fig)
-
-# Página de configurações
-def settings_page():
-    st.title("Configurações")
-
-    st.subheader("Perfil do Usuário")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.text_input("Nome", value="Usuário Exemplo")
-        st.text_input("Email", value="usuario@exemplo.com")
-
-    with col2:
-        st.number_input("Idade", min_value=10, max_value=100, value=30)
-        st.selectbox("Sexo", options=["Masculino", "Feminino", "Outro"])
-
-    st.subheader("Preferências")
-    st.checkbox("Receber notificações por email")
-    st.checkbox("Modo escuro", value=True)
-
-    if st.button("Salvar Configurações"):
-        st.success("Configurações salvas com sucesso!")
-
-# Função principal
+# Função principal do aplicativo
 def main():
-    # Verificar login
-    check_login()
+    # Verificar autenticação
+    if not authenticate():
+        return
 
-    # Sidebar
-    st.sidebar.title("Sintonia")
-    st.sidebar.image("https://via.placeholder.com/150", width=150)
+    # Sidebar para navegação
+    with st.sidebar:
+        st.title("Sintonia")
+        st.write(f"Olá, {st.session_state.username}!")
 
-    # Menu de navegação
-    menu = ["Início", "Avaliação de Prontidão", "Avaliação TRIMP", "Avaliação Mental", "Configurações"]
-    choice = st.sidebar.selectbox("Menu", menu)
+        # Menu de navegação
+        page = st.radio(
+            "Navegação",
+            ["Início", "Avaliação Mental", "Configurações", "Sair"]
+        )
 
-    # Exibir página selecionada
-    if choice == "Início":
-        home_page()
-    elif choice == "Avaliação de Prontidão":
-        # Substitua pelo seu código real
-        st.title("Avaliação de Prontidão")
-        st.write("Esta funcionalidade será implementada em breve.")
-        # readiness_assessment_page()  # Descomente quando o módulo estiver disponível
-    elif choice == "Avaliação TRIMP":
-        # Substitua pelo seu código real
-        st.title("Avaliação TRIMP")
-        st.write("Esta funcionalidade será implementada em breve.")
-        # trimp_evaluation_page()  # Descomente quando o módulo estiver disponível
-    elif choice == "Avaliação Mental":
-        # Nova funcionalidade de avaliação mental
-        mental_assessment_page()
-    elif choice == "Configurações":
-        settings_page()
+        # Botão de logout
+        if st.button("Logout"):
+            st.session_state.authenticated = False
+            st.session_state.user_id = None
+            st.experimental_rerun()
 
-    # Footer
-    st.sidebar.markdown("---")
-    st.sidebar.info("© 2023 Sintonia - Todos os direitos reservados")
+    # Conteúdo principal
+    if page == "Início":
+        st.title("Bem-vindo ao Sintonia")
+        st.write("Selecione uma opção no menu lateral para começar.")
 
+        # Cards informativos
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.info("**Avaliação Mental**  \nRegistre sua prontidão para treino e analise seus resultados.")
+
+        with col2:
+            st.info("**Configurações**  \nPersonalize sua experiência no aplicativo.")
+
+    elif page == "Avaliação Mental":
+        # Integração com o módulo de avaliação mental
+        mental_assessment_module()
+
+    elif page == "Configurações":
+        st.title("Configurações")
+
+        # Preferências do usuário
+        st.subheader("Preferências")
+
+        # Tema
+        theme = st.selectbox(
+            "Tema",
+            ["Claro", "Escuro", "Sistema"],
+            index=2
+        )
+
+        # Notificações
+        notifications = st.checkbox("Ativar notificações", value=True)
+
+        # Botão para salvar configurações
+        if st.button("Salvar Configurações"):
+            st.success("Configurações salvas com sucesso!")
+
+    elif page == "Sair":
+        st.session_state.authenticated = False
+        st.session_state.user_id = None
+        st.experimental_rerun()
+
+# Executar o aplicativo
 if __name__ == "__main__":
     main()
