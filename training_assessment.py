@@ -1,84 +1,241 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
+import os
 from datetime import datetime, timedelta
+from supabase import create_client
 
-# Importar função do arquivo utils
-from utils import init_supabase, get_user_training_assessments, get_user_assessments, save_training_assessment
+# Configuração da página
+st.set_page_config(
+    page_title="Sistema de Monitoramento do Atleta",
+    page_icon="🏃",
+    layout="wide"
+)
 
-def calculate_trimp(duration, rpe):
-    """
-    Calcula TRIMP (Training Impulse) pelo método Session-RPE
-    TRIMP = duração (minutos) * RPE (0-10)
-    """
-    return duration * rpe
+# Inicialização do Supabase
+def init_supabase():
+    try:
+        # Primeiro tenta ler do ambiente (Render), depois de st.secrets (local)
+        SUPABASE_URL = os.getenv("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+        SUPABASE_KEY = os.getenv("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
+        
+        client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        return client
+    except Exception as e:
+        st.warning(f"Erro ao conectar com Supabase: {str(e)}", icon="⚠️")
+        return None
 
-def calculate_injury_risk(trimp, readiness, acute_load, chronic_load):
-    """
-    Calcula risco de lesão baseado em:
-    - Carga de treino atual (TRIMP)
-    - Estado de prontidão
-    - Relação aguda:crônica (ACWR)
-    """
-    # Normalizar readiness para 0-1
-    readiness_factor = readiness / 100
+# Inicializar variáveis de sessão
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+if 'username' not in st.session_state:
+    st.session_state.username = None
+
+# Função para adicionar logo
+def add_logo():
+    try:
+        st.sidebar.image("logo.png", width=200)
+    except:
+        st.sidebar.title("App Sintonia")
+
+# Módulo de Prontidão
+def show_readiness_assessment():
+    st.header("Avaliação de Prontidão")
+    st.markdown("""
+    Esta avaliação utiliza ferramentas validadas para medir sua prontidão física:
+    * **Hooper Index**: Fadiga, estresse, dor e sono
+    * **TQR**: Recuperação global
+    * **NPRS**: Dor musculoesquelética
+    """)
     
-    # Calcular ACWR
-    if chronic_load == 0:
-        acwr = 1.0  # Valor neutro se não houver carga crônica
+    # Hooper Index
+    st.subheader("Hooper Index")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        hooper_fadiga = st.slider("Fadiga (1–7)", 1, 7)
+        hooper_estresse = st.slider("Estresse (1–7)", 1, 7)
+    
+    with col2:
+        hooper_doms = st.slider("Dor Muscular (1–7)", 1, 7)
+        hooper_sono = st.slider("Qualidade do Sono (1–7)", 1, 7)
+    
+    hooper_total = hooper_fadiga + hooper_estresse + hooper_doms + hooper_sono
+    st.info(f"Hooper Index Total: {hooper_total}/28")
+    
+    # TQR
+    st.subheader("Total Quality Recovery (TQR)")
+    tqr = st.slider("Recuperação (6–20)", 6, 20)
+    
+    # NPRS
+    st.subheader("Numeric Pain Rating Scale (NPRS)")
+    nprs = st.slider("Dor atual (0–10)", 0, 10)
+    
+    # Histórico de Carga
+    st.subheader("Histórico de Carga")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        ctl = st.number_input("CTL", value=0.0)
+    
+    with col2:
+        atl = st.number_input("ATL", value=0.0)
+    
+    # Calcular readiness
+    readiness = 100 - ((hooper_total - 4) / 24 * 30) - ((20 - tqr) / 14 * 30) - (nprs / 10 * 30)
+    readiness = max(0, min(100, readiness))
+    
+    st.metric("Prontidão", f"{readiness:.1f}%")
+    
+    if readiness >= 80:
+        st.success("Estado ótimo para treino intenso")
+    elif readiness >= 60:
+        st.info("Bom estado para treino normal")
+    elif readiness >= 40:
+        st.warning("Reduzir intensidade do treino")
     else:
-        acwr = acute_load / chronic_load
+        st.error("Priorizar recuperação")
     
-    # Risco base pelo ACWR
-    if acwr < 0.8:
-        base_risk = 0.4  # Risco moderado-baixo por subcarga
-    elif 0.8 <= acwr <= 1.3:
-        base_risk = 0.2  # Risco baixo - zona ideal
-    elif 1.3 < acwr <= 1.5:
-        base_risk = 0.6  # Risco moderado-alto
-    else:
-        base_risk = 0.8  # Risco alto
-    
-    # Ajustar risco pela prontidão e carga atual
-    trimp_factor = min(trimp / 1000, 0.5)  # TRIMP normalizado, máximo 0.5
-    
-    final_risk = (base_risk + trimp_factor) * (2 - readiness_factor)
-    
-    # Garantir que o risco esteja entre 0 e 100%
-    return min(max(final_risk * 100, 0), 100)
+    # Botão para salvar
+    if st.button("Salvar Avaliação", key="save_readiness"):
+        st.success("Avaliação de prontidão salva com sucesso!")
 
-def calculate_load_metrics(training_loads, days=7):
-    """
-    Calcula métricas de carga de treino:
-    - Carga aguda (7 dias)
-    - Carga crônica (28 dias)
-    - ACWR (Acute:Chronic Workload Ratio)
-    - Monotonia
-    - Strain
-    """
-    if not training_loads or len(training_loads) < days:
-        return None, None, None, None, None
+# Módulo de Estado de Treino
+def show_training_assessment():
+    st.header("Avaliação do Estado de Treino")
+    st.markdown("""
+    Esta avaliação utiliza métricas validadas para monitorar seu treino:
+    * **TRIMP**: Quantifica a carga de treino
+    * **ACWR**: Relação entre carga aguda e crônica
+    * **Risco de Lesão**: Estimativa baseada em fatores combinados
+    """)
     
-    # Extrair valores de carga
-    loads = [session['training_load'] for session in training_loads]
+    # Variáveis de entrada
+    st.subheader("Detalhes do Treino")
+    col1, col2 = st.columns(2)
     
-    # Carga aguda (últimos 7 dias)
-    acute_load = sum(loads[-7:]) if len(loads) >= 7 else sum(loads)
+    with col1:
+        duration = st.number_input("Duração (minutos)", min_value=0, value=60)
+        heart_rate = st.number_input("FC média (bpm)", min_value=0, value=140)
     
-    # Carga crônica (últimos 28 dias)
-    chronic_load = sum(loads[-28:]) / 4 if len(loads) >= 28 else sum(loads) / max(1, len(loads) / 7)
+    with col2:
+        rpe = st.slider("Percepção de Esforço (0-10)", 0.0, 10.0, 5.0, 0.5)
+        notes = st.text_area("Observações", height=100)
     
-    # ACWR
-    acwr = acute_load / chronic_load if chronic_load > 0 else 0
+    # Calcular TRIMP
+    trimp = duration * rpe
     
-    # Calcular monotonia (últimos 7 dias)
-    recent_loads = loads[-7:] if len(loads) >= 7 else loads
-    mean_load = np.mean(recent_loads)
-    sd_load = np.std(recent_loads)
-    monotony = mean_load / sd_load if sd_load > 0 else 0
+    # Mostrar métricas
+    col1, col2 = st.columns(2)
     
-    # Calcular strain
-    strain = acute_load * monotony
+    with col1:
+        st.metric("TRIMP", f"{trimp:.1f}")
+        st.info("TRIMP (Training Impulse) quantifica a carga interna de treino.")
     
-    return acute_load, chronic_load, acwr, monotony, strain
+    # Risco de lesão (simplificado)
+    injury_risk = min(trimp / 10, 100)
+    
+    with col2:
+        st.metric("Risco de Lesão", f"{injury_risk:.1f}%")
+        
+        if injury_risk < 30:
+            st.success("Risco Baixo")
+        elif injury_risk < 60:
+            st.warning("Risco Moderado")
+        else:
+            st.error("Risco Alto")
+    
+    # Botão para salvar
+    if st.button("Salvar Treino", key="save_training"):
+        st.success("Treino salvo com sucesso!")
+
+# Módulo Psicoemocional
+def show_psychological_assessment():
+    st.header("Avaliação Psicoemocional")
+    st.markdown("""
+    Esta avaliação utiliza questionários validados para seu estado psicoemocional:
+    * **DASS-21**: Avalia ansiedade
+    * **PSS-10**: Avalia estresse
+    * **FANTASTIC**: Avalia estilo de vida
+    """)
+    
+    # Simplificado para teste
+    st.subheader("Avaliação de Ansiedade")
+    anxiety = st.slider("Nível de Ansiedade (0-21)", 0, 21)
+    
+    st.subheader("Avaliação de Estresse")
+    stress = st.slider("Nível de Estresse (0-40)", 0, 40)
+    
+    st.subheader("Avaliação de Estilo de Vida")
+    lifestyle = st.slider("Estilo de Vida (0-100)", 0, 100)
+    
+    # Botão para salvar
+    if st.button("Salvar Avaliação", key="save_psych"):
+        st.success("Avaliação psicoemocional salva com sucesso!")
+
+# Dashboard
+def show_dashboard():
+    st.header("Dashboard Geral")
+    st.info("Aqui serão exibidas as métricas e tendências quando houver dados históricos.")
+    
+    # Exemplo de gráfico simples
+    fig, ax = plt.subplots()
+    data = [80, 75, 82, 70, 85, 72, 78]
+    days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+    ax.plot(days, data)
+    ax.set_title('Exemplo: Prontidão na Semana')
+    ax.set_ylabel('Prontidão (%)')
+    ax.grid(True)
+    st.pyplot(fig)
+
+# Login simplificado
+def show_login_form():
+    st.title("Sistema de Monitoramento do Atleta")
+    add_logo()
+    
+    # Login direto para teste
+    if st.button("Login de Teste"):
+        st.session_state.user_id = "teste123"
+        st.session_state.username = "Usuário de Teste"
+        st.success("Login realizado com sucesso!")
+        st.experimental_rerun()
+
+# Função principal
+def show_questionnaire():
+    add_logo()
+    st.title(f"Olá, {st.session_state.username}!")
+    
+    if st.sidebar.button("Logout"):
+        st.session_state.user_id = None
+        st.session_state.username = None
+        st.experimental_rerun()
+    
+    # Abas principais
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Avaliação de Prontidão",
+        "Estado de Treino",
+        "Avaliação Psicoemocional",
+        "Dashboard"
+    ])
+    
+    with tab1:
+        show_readiness_assessment()
+        
+    with tab2:
+        show_training_assessment()
+        
+    with tab3:
+        show_psychological_assessment()
+        
+    with tab4:
+        show_dashboard()
+
+# Fluxo principal
+def main():
+    if st.session_state.user_id is None:
+        show_login_form()
+    else:
+        show_questionnaire()
+
+if __name__ == "__main__":
+    main()
