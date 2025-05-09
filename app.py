@@ -1,10 +1,12 @@
+import os
 import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
 
 # --- Supabase config ---
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+# Primeiro tenta ler do ambiente (Render), depois de st.secrets (local)
+SUPABASE_URL = os.getenv("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Cálculos ---
