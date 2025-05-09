@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
 
-# Importar função do supabase do app.py
-from app import init_supabase, get_psychological_assessments, save_psychological_assessment
+# Importar função do arquivo utils
+from utils import init_supabase, get_psychological_assessments, save_psychological_assessment
 
 def show_psychological_assessment():
     st.header("Avaliação Psicoemocional")
