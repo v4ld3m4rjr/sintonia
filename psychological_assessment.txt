@@ -1,0 +1,15 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime, timedelta
+
+# Importar função do arquivo utils
+from utils import init_supabase, get_psychological_assessments, save_psychological_assessment
+
+def show_psychological_assessment():
+    st.header("Avaliação Psicoemocional")
+    st.markdown("""
+    Esta avaliação utiliza questionários validados cientificamente para avaliar seu estado psicoemocional:
+    * **DASS-21 (Depression Anxiety Stress Scale)**: Avalia ansiedade,

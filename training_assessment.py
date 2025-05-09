@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
-# Importar função do supabase do app.py
-from app import init_supabase, get_user_training_assessments, get_user_assessments
+# Importar função do arquivo utils
+from utils import init_supabase, get_user_training_assessments, get_user_assessments
 
 def calculate_trimp(duration, rpe):
     """

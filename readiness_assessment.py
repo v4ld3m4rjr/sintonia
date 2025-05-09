@@ -4,8 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
-# Importar função do supabase do app.py
-from app import init_supabase, get_user_assessments
+# Importar funções do arquivo utils
+from utils import init_supabase, get_user_assessments
 
 def compute_readiness(ctl, atl, hooper, tqr, nprs,
                      alpha=1.0, beta=1.0, gamma=1.0):
