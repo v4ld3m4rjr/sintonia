@@ -1,0 +1,168 @@
+
+    # Adicionar após as importações existentes
+    from readiness_assessment import ReadinessAssessment, show_readiness_assessment
+    from training_assessment import TrainingAssessment, show_training_assessment
+    from psychological_assessment import PsychologicalAssessment, show_psychological_assessment
+
+    # Adicionar às variáveis de sessão
+    if 'current_tab' not in st.session_state:
+        st.session_state.current_tab = 'readiness'
+    if 'readiness_history' not in st.session_state:
+        st.session_state.readiness_history = []
+    if 'training_history' not in st.session_state:
+        st.session_state.training_history = []
+    if 'psychological_history' not in st.session_state:
+        st.session_state.psychological_history = []
+
+    # Modificar a função show_questionnaire para incluir as novas tabs
+    def show_questionnaire():
+        add_logo()
+        st.title(f"Olá, {st.session_state.username}! 👋")
+
+        # Botões de administração e logout (manter como está)
+        if st.session_state.is_admin:
+            if st.sidebar.button("Painel de Administração"):
+                st.session_state.show_admin = True
+                st.experimental_rerun()
+
+        if st.sidebar.button("Logout"):
+            logout()
+
+        # Novas tabs para os diferentes tipos de avaliação
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "Avaliação de Prontidão",
+            "Estado de Treino",
+            "Avaliação Psicoemocional",
+            "Dashboard"
+        ])
+
+        with tab1:
+            show_readiness_assessment()
+
+        with tab2:
+            show_training_assessment()
+
+        with tab3:
+            show_psychological_assessment()
+
+        with tab4:
+            show_dashboard()
+
+    def show_dashboard():
+        st.header("Dashboard Geral")
+
+        # Métricas gerais
+        col1, col2, col3 = st.columns(3)
+
+        # Últimos 7 dias de dados
+        recent_readiness = st.session_state.readiness_history[-7:] if len(st.session_state.readiness_history) > 0 else []
+        recent_training = st.session_state.training_history[-7:] if len(st.session_state.training_history) > 0 else []
+        recent_psych = st.session_state.psychological_history[-7:] if len(st.session_state.psychological_history) > 0 else []
+
+        with col1:
+            if recent_readiness:
+                avg_readiness = np.mean([entry['score'] for entry in recent_readiness])
+                st.metric("Prontidão Média (7 dias)", f"{avg_readiness:.1f}%")
+
+        with col2:
+            if recent_training:
+                avg_load = np.mean([session['load'] for session in recent_training])
+                st.metric("Carga Média (7 dias)", f"{avg_load:.1f}")
+
+        with col3:
+            if recent_psych:
+                avg_stress = np.mean([assessment['stress_score'] for assessment in recent_psych])
+                st.metric("Estresse Médio (7 dias)", f"{avg_stress:.1f}")
+
+        # Gráficos de tendência
+        if recent_readiness or recent_training or recent_psych:
+            st.subheader("Tendências dos Últimos 7 Dias")
+
+            fig, ax = plt.subplots(figsize=(12, 6))
+
+            if recent_readiness:
+                dates = [entry['date'] for entry in recent_readiness]
+                scores = [entry['score'] for entry in recent_readiness]
+                ax.plot(dates, scores, 'b-', label='Prontidão', marker='o')
+
+            if recent_training:
+                dates = [session['date'] for session in recent_training]
+                loads = [session['load'] for session in recent_training]
+                ax.plot(dates, loads, 'r-', label='Carga', marker='s')
+
+            plt.title("Tendências Integradas")
+            plt.xlabel("Data")
+            plt.ylabel("Score/Carga")
+            plt.legend()
+            plt.grid(True)
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+
+            # Matriz de correlação
+            if recent_readiness and recent_training and recent_psych:
+                st.subheader("Correlações entre Métricas")
+
+                data = pd.DataFrame({
+                    'prontidao': [entry['score'] for entry in recent_readiness],
+                    'carga': [session['load'] for session in recent_training],
+                    'estresse': [assessment['stress_score'] for assessment in recent_psych]
+                })
+
+                corr_matrix = data.corr()
+
+                fig, ax = plt.subplots(figsize=(8, 6))
+                sns.heatmap(corr_matrix, 
+                           annot=True, 
+                           cmap='RdYlBu_r',
+                           vmin=-1,
+                           vmax=1,
+                           center=0)
+                plt.title("Correlações entre Métricas")
+                st.pyplot(fig)
+
+    # Atualizar funções de banco de dados para incluir novos campos
+    def save_psychological_assessment(user_id, anxiety_score, stress_score, lifestyle_score, 
+                                   anxiety_responses, stress_responses, lifestyle_responses):
+        try:
+            supabase = init_supabase()
+            if not supabase:
+                return None
+
+            assessment_data = {
+                'user_id': user_id,
+                'anxiety_score': anxiety_score,
+                'stress_score': stress_score,
+                'lifestyle_score': lifestyle_score,
+                'anxiety_responses': anxiety_responses,
+                'stress_responses': stress_responses,
+                'lifestyle_responses': lifestyle_responses
+            }
+
+            response = supabase.table('psychological_assessments').insert(assessment_data).execute()
+            return response.data[0]['id']
+        except Exception as e:
+            return None
+
+    def save_training_assessment(user_id, duration, rpe, heart_rate, trimp, training_load, 
+                               fatigue_score, notes):
+        try:
+            supabase = init_supabase()
+            if not supabase:
+                return None
+
+            assessment_data = {
+                'user_id': user_id,
+                'duration': duration,
+                'rpe': rpe,
+                'heart_rate': heart_rate,
+                'trimp': trimp,
+                'training_load': training_load,
+                'fatigue_score': fatigue_score,
+                'notes': notes
+            }
+
+            response = supabase.table('training_assessments').insert(assessment_data).execute()
+            return response.data[0]['id']
+        except Exception as e:
+            return None
+    

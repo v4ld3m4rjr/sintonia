@@ -1,29 +1,46 @@
+# Sintonia
 
-# Sintonia - Diagnóstico de Conexão
+Este repositório contém um app em Streamlit para avaliar:
+- **Readiness**: baseado em Hooper Index, TQR e NPRS  
+- **Estado de Treino**: cálculo de TRIMP (método S-RPE) e risco de lesão  
+- **Avaliação Psicoemocional**: DASS-21, PSS-10 e FANTASTIC
 
-Este aplicativo de diagnóstico ajuda a verificar a conexão com o Supabase e testar operações de usuário.
+## Pré-requisitos
 
-## Como usar
+- Python 3.8+  
+- Conta e projeto no Supabase  
+- Streamlit secrets configurado com `SUPABASE_URL` e `SUPABASE_KEY`
 
-1. **Teste de Conexão**
-   - Verifica se o aplicativo consegue se conectar ao Supabase
-   - Mostra informações sobre as credenciais encontradas
+## Estrutura do Repositório
 
-2. **Teste de Login**
-   - Permite testar credenciais de login
-   - Mostra a resposta completa do Supabase para diagnóstico
+```
+.
+├── app.py
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
 
-3. **Usuários Cadastrados**
-   - Lista todos os usuários no banco de dados
-   - Útil para verificar se os registros estão sendo salvos
+## Instalação
 
-4. **Criar Usuário de Teste**
-   - Permite criar um usuário de teste rapidamente
-   - Mostra a resposta completa da operação
-
-## Configuração
-
-Certifique-se de que as credenciais do Supabase estão configuradas:
-
-- No Render: Adicione as variáveis de ambiente `SUPABASE_URL` e `SUPABASE_KEY`
-- Localmente: Edite o arquivo `.streamlit/secrets.toml`
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/SEU_USUARIO/sintonia.git
+   cd sintonia
+   ```
+2. Crie e ative um ambiente virtual:
+   ```bash
+   python -m venv env
+   source env/bin/activate      # Linux/macOS
+   env\Scripts\activate       # Windows
+   ```
+3. Instale as dependências:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Configure as credenciais no Streamlit:
+   Crie o arquivo `~/.streamlit/secrets.toml` com:
+   ```toml
+   SUPABASE_URL = "sua_supabase_url"
+   SUPABASE_KEY = "sua_supabase_key"
+   ```
