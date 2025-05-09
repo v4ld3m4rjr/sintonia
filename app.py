@@ -198,7 +198,8 @@ def show_login_form():
         st.session_state.user_id = "teste123"
         st.session_state.username = "Usuário de Teste"
         st.success("Login realizado com sucesso!")
-        st.experimental_rerun()
+        # Usando st.rerun() em vez de st.experimental_rerun()
+        st.rerun()
 
 # Função principal
 def show_questionnaire():
@@ -208,7 +209,8 @@ def show_questionnaire():
     if st.sidebar.button("Logout"):
         st.session_state.user_id = None
         st.session_state.username = None
-        st.experimental_rerun()
+        # Usando st.rerun() em vez de st.experimental_rerun()
+        st.rerun()
     
     # Abas principais
     tab1, tab2, tab3, tab4 = st.tabs([
