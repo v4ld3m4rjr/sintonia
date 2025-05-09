@@ -1,0 +1,6 @@
+-- Modificações na tabela readiness_assessments (se necessário)
+ALTER TABLE readiness_assessments
+ADD COLUMN IF NOT EXISTS hooper_fadiga INTEGER,
+ADD COLUMN IF NOT EXISTS hooper_estresse INTEGER,
+ADD COLUMN IF NOT EXISTS hooper_dor INTEGER,
+ADD COLUMN
