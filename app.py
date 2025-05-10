@@ -1,243 +1,323 @@
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-import os
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-from supabase import create_client
+import json
+import os
+from utils import *
+from readiness import readiness_bp
+from training import training_bp
+from psychological import psychological_bp
+from dashboard import dashboard_bp
 
-# Configuração da página
-st.set_page_config(
-    page_title="Sistema de Monitoramento do Atleta",
-    page_icon="🏃",
-    layout="wide"
-)
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'sua_chave_secreta_aqui'  # Mude para uma chave secreta segura
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///athlete_monitoring.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Inicialização do Supabase
-def init_supabase():
-    try:
-        # Primeiro tenta ler do ambiente (Render), depois de st.secrets (local)
-        SUPABASE_URL = os.getenv("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
-        SUPABASE_KEY = os.getenv("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
+db = SQLAlchemy(app)
+
+# Registro dos blueprints
+app.register_blueprint(readiness_bp, url_prefix='/readiness')
+app.register_blueprint(training_bp, url_prefix='/training')
+app.register_blueprint(psychological_bp, url_prefix='/psychological')
+app.register_blueprint(dashboard_bp, url_prefix='/dashboard')
+
+# Modelos de banco de dados
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128))
+    name = db.Column(db.String(80), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relacionamentos
+    readiness_assessments = db.relationship('ReadinessAssessment', backref='user', lazy=True)
+    training_assessments = db.relationship('TrainingAssessment', backref='user', lazy=True)
+    psychological_assessments = db.relationship('PsychologicalAssessment', backref='user', lazy=True)
+    training_logs = db.relationship('TrainingLog', backref='user', lazy=True)
+    training_sessions = db.relationship('TrainingSession', backref='user', lazy=True)
+    goals = db.relationship('Goal', backref='user', lazy=True)
+    performance_metrics = db.relationship('PerformanceMetric', backref='user', lazy=True)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+class ReadinessAssessment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    sleep_quality = db.Column(db.Integer, nullable=False)  # 1-5
+    sleep_duration = db.Column(db.Float, nullable=False)  # em horas
+    stress_level = db.Column(db.Integer, nullable=False)  # 1-5
+    muscle_soreness = db.Column(db.Integer, nullable=False)  # 1-5
+    energy_level = db.Column(db.Integer, nullable=False)  # 1-5
+    motivation = db.Column(db.Integer, nullable=False)  # 1-5
+    nutrition_quality = db.Column(db.Integer, nullable=False)  # 1-5
+    hydration = db.Column(db.Integer, nullable=False)  # 1-5
+    readiness_score = db.Column(db.Float, nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class TrainingAssessment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    training_load = db.Column(db.Float, nullable=False)  # RPE * Duration
+    training_duration = db.Column(db.Float, nullable=False)  # minutos
+    rpe = db.Column(db.Integer, nullable=False)  # 1-10
+    intensity_zone = db.Column(db.String(20), nullable=False)  # Low, Moderate, High, Very High
+    training_type = db.Column(db.String(50), nullable=False)  # Aerobic, Anaerobic, Mixed, Recovery
+    fatigue_level = db.Column(db.Integer, nullable=False)  # 1-10
+    performance_feeling = db.Column(db.Integer, nullable=False)  # 1-10
+    chronic_load = db.Column(db.Float)  # CTL
+    acute_load = db.Column(db.Float)  # ATL
+    training_strain = db.Column(db.Float)  # ATL/CTL
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class PsychologicalAssessment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    
+    # DASS-21 Scores
+    depression_score = db.Column(db.Integer, nullable=False)
+    anxiety_score = db.Column(db.Integer, nullable=False)
+    stress_score = db.Column(db.Integer, nullable=False)
+    
+    # Motivation Assessment
+    intrinsic_motivation = db.Column(db.Integer, nullable=False)  # 1-7
+    extrinsic_motivation = db.Column(db.Integer, nullable=False)  # 1-7
+    amotivation = db.Column(db.Integer, nullable=False)  # 1-7
+    
+    # Flow State Scale
+    flow_score = db.Column(db.Float, nullable=False)
+    
+    # Additional fields
+    confidence_level = db.Column(db.Integer, nullable=False)  # 1-10
+    focus_ability = db.Column(db.Integer, nullable=False)  # 1-10
+    emotional_state = db.Column(db.String(50))
+    pre_competition_anxiety = db.Column(db.Integer)  # 1-10 (optional)
+    satisfaction_with_training = db.Column(db.Integer, nullable=False)  # 1-10
+    team_cohesion = db.Column(db.Integer)  # 1-10 (optional)
+    
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class TrainingLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    training_type = db.Column(db.String(50), nullable=False)
+    duration = db.Column(db.Float, nullable=False)  # minutos
+    distance = db.Column(db.Float)  # km
+    pace = db.Column(db.String(20))  # min/km
+    heart_rate_avg = db.Column(db.Integer)  # bpm
+    heart_rate_max = db.Column(db.Integer)  # bpm
+    calories_burned = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class TrainingSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.DateTime, nullable=False)
+    title = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    training_type = db.Column(db.String(50))
+    planned_duration = db.Column(db.Float)  # minutos
+    actual_duration = db.Column(db.Float)  # minutos
+    completed = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Goal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    target_date = db.Column(db.Date)
+    metric_type = db.Column(db.String(50))  # performance, readiness, psychological
+    target_value = db.Column(db.Float)
+    current_value = db.Column(db.Float)
+    status = db.Column(db.String(20), default='active')  # active, completed, abandoned
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class PerformanceMetric(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    metric_type = db.Column(db.String(50), nullable=False)  # VO2max, 5K time, marathon time, etc.
+    value = db.Column(db.Float, nullable=False)
+    unit = db.Column(db.String(20))  # ml/kg/min, minutes, seconds, etc.
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Rotas principais
+@app.route('/')
+def index():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return render_template('index.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        name = request.form['name']
         
-        client = create_client(SUPABASE_URL, SUPABASE_KEY)
-        return client
-    except Exception as e:
-        st.warning(f"Erro ao conectar com Supabase: {str(e)}", icon="⚠️")
-        return None
-
-# Inicializar variáveis de sessão
-if 'user_id' not in st.session_state:
-    st.session_state.user_id = None
-if 'username' not in st.session_state:
-    st.session_state.username = None
-
-# Função para adicionar logo
-def add_logo():
-    try:
-        st.sidebar.image("logo.png", width=200)
-    except:
-        st.sidebar.title("App Sintonia")
-
-# Módulo de Prontidão
-def show_readiness_assessment():
-    st.header("Avaliação de Prontidão")
-    st.markdown("""
-    Esta avaliação utiliza ferramentas validadas para medir sua prontidão física:
-    * **Hooper Index**: Fadiga, estresse, dor e sono
-    * **TQR**: Recuperação global
-    * **NPRS**: Dor musculoesquelética
-    """)
-    
-    # Hooper Index
-    st.subheader("Hooper Index")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        hooper_fadiga = st.slider("Fadiga (1–7)", 1, 7)
-        hooper_estresse = st.slider("Estresse (1–7)", 1, 7)
-    
-    with col2:
-        hooper_doms = st.slider("Dor Muscular (1–7)", 1, 7)
-        hooper_sono = st.slider("Qualidade do Sono (1–7)", 1, 7)
-    
-    hooper_total = hooper_fadiga + hooper_estresse + hooper_doms + hooper_sono
-    st.info(f"Hooper Index Total: {hooper_total}/28")
-    
-    # TQR
-    st.subheader("Total Quality Recovery (TQR)")
-    tqr = st.slider("Recuperação (6–20)", 6, 20)
-    
-    # NPRS
-    st.subheader("Numeric Pain Rating Scale (NPRS)")
-    nprs = st.slider("Dor atual (0–10)", 0, 10)
-    
-    # Histórico de Carga
-    st.subheader("Histórico de Carga")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        ctl = st.number_input("CTL", value=0.0)
-    
-    with col2:
-        atl = st.number_input("ATL", value=0.0)
-    
-    # Calcular readiness
-    readiness = 100 - ((hooper_total - 4) / 24 * 30) - ((20 - tqr) / 14 * 30) - (nprs / 10 * 30)
-    readiness = max(0, min(100, readiness))
-    
-    st.metric("Prontidão", f"{readiness:.1f}%")
-    
-    if readiness >= 80:
-        st.success("Estado ótimo para treino intenso")
-    elif readiness >= 60:
-        st.info("Bom estado para treino normal")
-    elif readiness >= 40:
-        st.warning("Reduzir intensidade do treino")
-    else:
-        st.error("Priorizar recuperação")
-    
-    # Botão para salvar
-    if st.button("Salvar Avaliação", key="save_readiness"):
-        st.success("Avaliação de prontidão salva com sucesso!")
-
-# Módulo de Estado de Treino
-def show_training_assessment():
-    st.header("Avaliação do Estado de Treino")
-    st.markdown("""
-    Esta avaliação utiliza métricas validadas para monitorar seu treino:
-    * **TRIMP**: Quantifica a carga de treino
-    * **ACWR**: Relação entre carga aguda e crônica
-    * **Risco de Lesão**: Estimativa baseada em fatores combinados
-    """)
-    
-    # Variáveis de entrada
-    st.subheader("Detalhes do Treino")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        duration = st.number_input("Duração (minutos)", min_value=0, value=60)
-        heart_rate = st.number_input("FC média (bpm)", min_value=0, value=140)
-    
-    with col2:
-        rpe = st.slider("Percepção de Esforço (0-10)", 0.0, 10.0, 5.0, 0.5)
-        notes = st.text_area("Observações", height=100)
-    
-    # Calcular TRIMP
-    trimp = duration * rpe
-    
-    # Mostrar métricas
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.metric("TRIMP", f"{trimp:.1f}")
-        st.info("TRIMP (Training Impulse) quantifica a carga interna de treino.")
-    
-    # Risco de lesão (simplificado)
-    injury_risk = min(trimp / 10, 100)
-    
-    with col2:
-        st.metric("Risco de Lesão", f"{injury_risk:.1f}%")
+        if User.query.filter_by(email=email).first():
+            flash('Email já cadastrado!')
+            return redirect(url_for('register'))
         
-        if injury_risk < 30:
-            st.success("Risco Baixo")
-        elif injury_risk < 60:
-            st.warning("Risco Moderado")
+        user = User(email=email, name=name)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        
+        flash('Cadastro realizado com sucesso!')
+        return redirect(url_for('login'))
+    
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        user = User.query.filter_by(email=email).first()
+        
+        if user and user.check_password(password):
+            session['user_id'] = user.id
+            session['user_name'] = user.name
+            return redirect(url_for('dashboard'))
+        
+        flash('Email ou senha incorretos!')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user_id = session['user_id']
+    today = datetime.now().date()
+    
+    # Buscar dados dos últimos 7 dias
+    seven_days_ago = today - timedelta(days=7)
+    
+    readiness_data = db.session.query(ReadinessAssessment).filter(
+        ReadinessAssessment.user_id == user_id,
+        ReadinessAssessment.date >= seven_days_ago
+    ).all()
+    
+    training_data = db.session.query(TrainingAssessment).filter(
+        TrainingAssessment.user_id == user_id,
+        TrainingAssessment.date >= seven_days_ago
+    ).all()
+    
+    psychological_data = db.session.query(PsychologicalAssessment).filter(
+        PsychologicalAssessment.user_id == user_id,
+        PsychologicalAssessment.date >= seven_days_ago
+    ).all()
+    
+    # Calcular médias
+    avg_readiness = sum([r.readiness_score for r in readiness_data]) / len(readiness_data) if readiness_data else 0
+    avg_training_load = sum([t.training_load for t in training_data]) / len(training_data) if training_data else 0
+    avg_stress = sum([p.stress_score for p in psychological_data]) / len(psychological_data) if psychological_data else 0
+    
+    return render_template('dashboard.html', 
+                         avg_readiness=avg_readiness,
+                         avg_training_load=avg_training_load,
+                         avg_stress=avg_stress,
+                         readiness_data=readiness_data,
+                         training_data=training_data,
+                         psychological_data=psychological_data)
+
+# Rota para recuperação de senha
+@app.route('/recover-password', methods=['GET', 'POST'])
+def recover_password():
+    if request.method == 'POST':
+        email = request.form['email']
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            # Aqui você implementaria o envio de email
+            # Por enquanto, apenas uma mensagem
+            flash('Se este email existe, você receberá instruções para recuperar sua senha.')
         else:
-            st.error("Risco Alto")
-    
-    # Botão para salvar
-    if st.button("Salvar Treino", key="save_training"):
-        st.success("Treino salvo com sucesso!")
-
-# Módulo Psicoemocional
-def show_psychological_assessment():
-    st.header("Avaliação Psicoemocional")
-    st.markdown("""
-    Esta avaliação utiliza questionários validados para seu estado psicoemocional:
-    * **DASS-21**: Avalia ansiedade
-    * **PSS-10**: Avalia estresse
-    * **FANTASTIC**: Avalia estilo de vida
-    """)
-    
-    # Simplificado para teste
-    st.subheader("Avaliação de Ansiedade")
-    anxiety = st.slider("Nível de Ansiedade (0-21)", 0, 21)
-    
-    st.subheader("Avaliação de Estresse")
-    stress = st.slider("Nível de Estresse (0-40)", 0, 40)
-    
-    st.subheader("Avaliação de Estilo de Vida")
-    lifestyle = st.slider("Estilo de Vida (0-100)", 0, 100)
-    
-    # Botão para salvar
-    if st.button("Salvar Avaliação", key="save_psych"):
-        st.success("Avaliação psicoemocional salva com sucesso!")
-
-# Dashboard
-def show_dashboard():
-    st.header("Dashboard Geral")
-    st.info("Aqui serão exibidas as métricas e tendências quando houver dados históricos.")
-    
-    # Exemplo de gráfico simples
-    fig, ax = plt.subplots()
-    data = [80, 75, 82, 70, 85, 72, 78]
-    days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-    ax.plot(days, data)
-    ax.set_title('Exemplo: Prontidão na Semana')
-    ax.set_ylabel('Prontidão (%)')
-    ax.grid(True)
-    st.pyplot(fig)
-
-# Login simplificado
-def show_login_form():
-    st.title("Sistema de Monitoramento do Atleta")
-    add_logo()
-    
-    # Login direto para teste
-    if st.button("Login de Teste"):
-        st.session_state.user_id = "teste123"
-        st.session_state.username = "Usuário de Teste"
-        st.success("Login realizado com sucesso!")
-        # Usando st.rerun() em vez de st.experimental_rerun()
-        st.rerun()
-
-# Função principal
-def show_questionnaire():
-    add_logo()
-    st.title(f"Olá, {st.session_state.username}!")
-    
-    if st.sidebar.button("Logout"):
-        st.session_state.user_id = None
-        st.session_state.username = None
-        # Usando st.rerun() em vez de st.experimental_rerun()
-        st.rerun()
-    
-    # Abas principais
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Avaliação de Prontidão",
-        "Estado de Treino",
-        "Avaliação Psicoemocional",
-        "Dashboard"
-    ])
-    
-    with tab1:
-        show_readiness_assessment()
+            flash('Se este email existe, você receberá instruções para recuperar sua senha.')
         
-    with tab2:
-        show_training_assessment()
-        
-    with tab3:
-        show_psychological_assessment()
-        
-    with tab4:
-        show_dashboard()
+        return redirect(url_for('login'))
+    
+    return render_template('recover_password.html')
 
-# Fluxo principal
-def main():
-    if st.session_state.user_id is None:
-        show_login_form()
-    else:
-        show_questionnaire()
+# API endpoints
+@app.route('/api/data/<data_type>')
+def api_get_data(data_type):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user_id = session['user_id']
+    days = request.args.get('days', 30, type=int)
+    start_date = datetime.now().date() - timedelta(days=days)
+    
+    if data_type == 'readiness':
+        data = ReadinessAssessment.query.filter(
+            ReadinessAssessment.user_id == user_id,
+            ReadinessAssessment.date >= start_date
+        ).all()
+        
+        return jsonify([{
+            'date': d.date.isoformat(),
+            'score': d.readiness_score,
+            'sleep_quality': d.sleep_quality,
+            'stress_level': d.stress_level,
+            'energy_level': d.energy_level
+        } for d in data])
+    
+    elif data_type == 'training':
+        data = TrainingAssessment.query.filter(
+            TrainingAssessment.user_id == user_id,
+            TrainingAssessment.date >= start_date
+        ).all()
+        
+        return jsonify([{
+            'date': d.date.isoformat(),
+            'training_load': d.training_load,
+            'rpe': d.rpe,
+            'duration': d.training_duration,
+            'type': d.training_type
+        } for d in data])
+    
+    elif data_type == 'psychological':
+        data = PsychologicalAssessment.query.filter(
+            PsychologicalAssessment.user_id == user_id,
+            PsychologicalAssessment.date >= start_date
+        ).all()
+        
+        return jsonify([{
+            'date': d.date.isoformat(),
+            'stress_score': d.stress_score,
+            'anxiety_score': d.anxiety_score,
+            'depression_score': d.depression_score,
+            'flow_score': d.flow_score,
+            'confidence_level': d.confidence_level
+        } for d in data])
+    
+    return jsonify({'error': 'Invalid data type'}), 400
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
