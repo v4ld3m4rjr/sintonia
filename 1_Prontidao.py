@@ -45,6 +45,93 @@ create_sidebar()
 st.title("🔋 Prontidão")
 create_breadcrumbs(["Dashboard", "Prontidão"])
 
+# Função para obter descrição qualitativa para cada valor da escala
+def get_scale_description(value, scale_type):
+    """
+    Retorna uma descrição qualitativa para um valor em uma escala específica.
+    
+    Args:
+        value: Valor numérico na escala
+        scale_type: Tipo de escala (sleep_quality, stress_level, etc.)
+    
+    Returns:
+        str: Descrição qualitativa
+    """
+    descriptions = {
+        "sleep_quality": {
+            1: "Muito ruim - Sono extremamente fragmentado, insônia severa",
+            2: "Ruim - Dificuldade para dormir, despertares frequentes",
+            3: "Regular - Sono razoável com alguns despertares",
+            4: "Bom - Sono contínuo com poucos despertares",
+            5: "Excelente - Sono profundo e reparador"
+        },
+        "stress_level": {
+            1: "Muito estressado - Sensação de sobrecarga, ansiedade intensa",
+            2: "Estressado - Tensão constante, dificuldade para relaxar",
+            3: "Moderado - Alguma tensão, mas gerenciável",
+            4: "Relaxado - Sensação de calma na maior parte do tempo",
+            5: "Muito relaxado - Completamente tranquilo e em paz"
+        },
+        "muscle_soreness": {
+            1: "Dor severa - Dor limitante, afeta movimentos básicos",
+            2: "Dor moderada - Desconforto constante, afeta alguns movimentos",
+            3: "Dor leve - Sensação de desconforto ocasional",
+            4: "Mínima dor - Leve sensibilidade em alguns músculos",
+            5: "Sem dor - Nenhuma sensação de dor ou desconforto"
+        },
+        "energy_level": {
+            1: "Exausto - Sem energia para atividades básicas",
+            2: "Cansado - Energia limitada, necessidade de esforço extra",
+            3: "Moderado - Energia suficiente para o dia",
+            4: "Energizado - Boa disposição para atividades",
+            5: "Muito energizado - Energia abundante, vitalidade máxima"
+        },
+        "motivation": {
+            1: "Desmotivado - Sem vontade de treinar ou se exercitar",
+            2: "Pouco motivado - Precisa de esforço para iniciar atividades",
+            3: "Motivação moderada - Disposição razoável para treinar",
+            4: "Motivado - Boa vontade e entusiasmo para treinar",
+            5: "Muito motivado - Extremamente entusiasmado e ansioso para treinar"
+        },
+        "nutrition_quality": {
+            1: "Muito ruim - Alimentação inadequada, processados, fast food",
+            2: "Ruim - Poucas refeições balanceadas, excesso de processados",
+            3: "Regular - Algumas refeições balanceadas, algumas escolhas ruins",
+            4: "Boa - Maioria das refeições balanceadas e nutritivas",
+            5: "Excelente - Alimentação ideal, balanceada e nutritiva"
+        },
+        "hydration": {
+            1: "Desidratado - Sede constante, urina escura, boca seca",
+            2: "Pouco hidratado - Alguma sede, hidratação insuficiente",
+            3: "Moderadamente hidratado - Hidratação razoável",
+            4: "Bem hidratado - Boa ingestão de líquidos durante o dia",
+            5: "Perfeitamente hidratado - Ingestão ideal de água e líquidos"
+        },
+        "sleep_duration": {
+            # Para duração do sono, usamos faixas
+            0: "Crítico - Menos de 4 horas",
+            1: "Crítico - Menos de 4 horas",
+            2: "Crítico - Menos de 4 horas",
+            3: "Crítico - Menos de 4 horas",
+            4: "Muito pouco - 4 horas",
+            5: "Insuficiente - 5 horas",
+            6: "Abaixo do ideal - 6 horas",
+            7: "Adequado - 7 horas",
+            8: "Ideal - 8 horas",
+            9: "Excelente - 9 horas",
+            10: "Abundante - 10 horas",
+            11: "Abundante - 11 horas",
+            12: "Abundante - 12 horas"
+        }
+    }
+    
+    # Para valores decimais na duração do sono
+    if scale_type == "sleep_duration" and isinstance(value, float):
+        # Arredonda para o inteiro mais próximo para buscar a descrição
+        return descriptions[scale_type].get(round(value), "")
+    
+    return descriptions.get(scale_type, {}).get(value, "")
+
 # Função para exibir o formulário de nova avaliação
 def show_new_assessment():
     """Exibe o formulário para registro de nova avaliação de prontidão."""
@@ -59,31 +146,69 @@ def show_new_assessment():
         col1, col2 = st.columns(2)
         
         with col1:
-            sleep_quality = st.slider("Qualidade do Sono", 1, 5, 3, 
-                                     help="1 = Muito ruim, 5 = Excelente")
+            sleep_quality = st.slider(
+                "Qualidade do Sono", 
+                1, 5, 3, 
+                help="1 = Muito ruim, 5 = Excelente",
+                format="%d"
+            )
+            st.caption(get_scale_description(sleep_quality, "sleep_quality"))
             
-            sleep_duration = st.number_input("Duração do Sono (horas)", 
-                                           min_value=0.0, max_value=12.0, value=7.0, step=0.5,
-                                           help="Quantidade de horas dormidas")
+            sleep_duration = st.number_input(
+                "Duração do Sono (horas)", 
+                min_value=0.0, max_value=12.0, value=7.0, step=0.5,
+                help="Quantidade de horas dormidas"
+            )
+            st.caption(get_scale_description(round(sleep_duration), "sleep_duration"))
             
-            stress_level = st.slider("Nível de Estresse", 1, 5, 3, 
-                                    help="1 = Muito estressado, 5 = Muito relaxado")
+            stress_level = st.slider(
+                "Nível de Estresse", 
+                1, 5, 3, 
+                help="1 = Muito estressado, 5 = Muito relaxado",
+                format="%d"
+            )
+            st.caption(get_scale_description(stress_level, "stress_level"))
             
-            muscle_soreness = st.slider("Dor Muscular", 1, 5, 3, 
-                                       help="1 = Muita dor, 5 = Sem dor")
+            muscle_soreness = st.slider(
+                "Dor Muscular", 
+                1, 5, 3, 
+                help="1 = Muita dor, 5 = Sem dor",
+                format="%d"
+            )
+            st.caption(get_scale_description(muscle_soreness, "muscle_soreness"))
         
         with col2:
-            energy_level = st.slider("Nível de Energia", 1, 5, 3, 
-                                    help="1 = Sem energia, 5 = Muito energizado")
+            energy_level = st.slider(
+                "Nível de Energia", 
+                1, 5, 3, 
+                help="1 = Sem energia, 5 = Muito energizado",
+                format="%d"
+            )
+            st.caption(get_scale_description(energy_level, "energy_level"))
             
-            motivation = st.slider("Motivação", 1, 5, 3, 
-                                  help="1 = Desmotivado, 5 = Muito motivado")
+            motivation = st.slider(
+                "Motivação", 
+                1, 5, 3, 
+                help="1 = Desmotivado, 5 = Muito motivado",
+                format="%d"
+            )
+            st.caption(get_scale_description(motivation, "motivation"))
             
-            nutrition_quality = st.slider("Qualidade da Nutrição", 1, 5, 3, 
-                                         help="1 = Muito ruim, 5 = Excelente")
+            nutrition_quality = st.slider(
+                "Qualidade da Nutrição", 
+                1, 5, 3, 
+                help="1 = Muito ruim, 5 = Excelente",
+                format="%d"
+            )
+            st.caption(get_scale_description(nutrition_quality, "nutrition_quality"))
             
-            hydration = st.slider("Hidratação", 1, 5, 3, 
-                                 help="1 = Desidratado, 5 = Bem hidratado")
+            hydration = st.slider(
+                "Hidratação", 
+                1, 5, 3, 
+                help="1 = Desidratado, 5 = Bem hidratado",
+                format="%d"
+            )
+            st.caption(get_scale_description(hydration, "hydration"))
         
         notes = st.text_area("Notas Adicionais", 
                            placeholder="Observações sobre como você está se sentindo hoje...")
@@ -235,6 +360,11 @@ def show_assessment_result(score, assessment_data):
         recommendations.append(f"Considere um dia de descanso ou recuperação ativa com atividades de baixa intensidade.")
     elif score < 60:
         recommendations.append(f"Reduza a intensidade do treino hoje e foque em técnica ou treino de baixo impacto.")
+    
+    # Calcula a recomendação de redução de volume com base no score
+    volume_reduction = max(0, int((100 - score) * 0.8))  # 0% de redução para score 100, até 80% para score 0
+    if volume_reduction > 0:
+        recommendations.append(f"Recomendação de volume: reduza o volume do seu treino em aproximadamente {volume_reduction}% hoje.")
     
     # Exibe as recomendações em um card
     recommendation_card("Recomendações Personalizadas", recommendations)
@@ -429,5 +559,137 @@ def show_analysis():
     df['weekday_pt'] = df['weekday'].map(weekday_pt)
     
     # Análise por dia da semana
-    st.subheader("Score d
-(Content truncated due to size limit. Use line ranges to read in chunks)
+    st.subheader("Score de Prontidão por Dia da Semana")
+    
+    # Calcula média por dia da semana
+    weekday_avg = df.groupby('weekday')['score'].mean().reindex(weekday_order).reset_index()
+    weekday_avg['weekday_pt'] = weekday_avg['weekday'].map(weekday_pt)
+    
+    # Cria o gráfico
+    fig = px.bar(
+        weekday_avg,
+        x='weekday_pt',
+        y='score',
+        color='score',
+        color_continuous_scale='Viridis',
+        labels={'score': 'Score Médio', 'weekday_pt': 'Dia da Semana'}
+    )
+    
+    fig.update_layout(
+        yaxis=dict(range=[0, 100]),
+        height=400,
+        margin=dict(l=20, r=20, t=20, b=20)
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Identifica os melhores e piores dias
+    best_day = weekday_avg.loc[weekday_avg['score'].idxmax()]
+    worst_day = weekday_avg.loc[weekday_avg['score'].idxmin()]
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        metric_card(
+            title="Melhor Dia da Semana",
+            value=best_day['weekday_pt'],
+            description=f"Score médio: {best_day['score']:.1f}"
+        )
+    
+    with col2:
+        metric_card(
+            title="Pior Dia da Semana",
+            value=worst_day['weekday_pt'],
+            description=f"Score médio: {worst_day['score']:.1f}"
+        )
+    
+    # Correlações entre variáveis
+    st.subheader("Correlações entre Componentes")
+    
+    # Seleciona apenas as colunas numéricas relevantes
+    numeric_cols = [
+        'sleep_quality', 'sleep_duration', 'stress_level', 'muscle_soreness',
+        'energy_level', 'motivation', 'nutrition_quality', 'hydration', 'score'
+    ]
+    
+    # Calcula a matriz de correlação
+    corr_matrix = df[numeric_cols].corr()
+    
+    # Nomes mais amigáveis para os componentes
+    component_names = {
+        'sleep_quality': 'Qualidade do Sono',
+        'sleep_duration': 'Duração do Sono',
+        'stress_level': 'Nível de Estresse',
+        'muscle_soreness': 'Dor Muscular',
+        'energy_level': 'Nível de Energia',
+        'motivation': 'Motivação',
+        'nutrition_quality': 'Nutrição',
+        'hydration': 'Hidratação',
+        'score': 'Score Final'
+    }
+    
+    # Renomeia os índices e colunas
+    corr_matrix.index = [component_names[col] for col in corr_matrix.index]
+    corr_matrix.columns = [component_names[col] for col in corr_matrix.columns]
+    
+    # Cria o heatmap
+    fig = px.imshow(
+        corr_matrix,
+        text_auto='.2f',
+        color_continuous_scale='RdBu_r',
+        zmin=-1,
+        zmax=1,
+        aspect="auto"
+    )
+    
+    fig.update_layout(
+        height=500,
+        margin=dict(l=20, r=20, t=20, b=20)
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Insights automáticos
+    st.subheader("Insights Automáticos")
+    
+    # Encontra os componentes mais correlacionados com o score
+    score_corr = corr_matrix['Score Final'].drop('Score Final').sort_values(ascending=False)
+    top_components = score_corr.head(3)
+    
+    insights = [
+        f"Os componentes que mais impactam seu score de prontidão são: {', '.join(top_components.index)}.",
+        f"Seu nível de prontidão tende a ser melhor às {best_day['weekday_pt']}s e pior às {worst_day['weekday_pt']}s.",
+    ]
+    
+    # Adiciona insights sobre tendências
+    if len(df) >= 14:
+        recent_trend = df['score'].tail(7).mean() - df['score'].tail(14).head(7).mean()
+        if abs(recent_trend) > 5:
+            trend_direction = "melhorando" if recent_trend > 0 else "piorando"
+            insights.append(f"Sua prontidão está {trend_direction} nas últimas semanas (variação de {abs(recent_trend):.1f} pontos).")
+    
+    # Exibe os insights
+    for insight in insights:
+        info_card("Insight", insight, "💡")
+
+# Função principal
+def main():
+    """Função principal que controla o fluxo da página."""
+    # Cria as abas
+    tabs = create_tabs(["Nova Avaliação", "Histórico", "Análise"])
+    
+    # Aba de Nova Avaliação
+    with tabs[0]:
+        show_new_assessment()
+    
+    # Aba de Histórico
+    with tabs[1]:
+        show_history()
+    
+    # Aba de Análise
+    with tabs[2]:
+        show_analysis()
+
+# Executa a função principal
+if __name__ == "__main__":
+    main()
